@@ -1,4 +1,7 @@
-# Zalo Mini App
+# Zalo Mini App - Xác Nhận Đơn Hàng
+
+## Mô tả
+Ứng dụng mini Zalo để xác nhận đơn hàng, quản lý đơn hàng và theo dõi trạng thái.
 
 ## Development
 
