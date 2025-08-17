@@ -1,0 +1,17 @@
+{
+  "app": {
+    "title": "Supplier Order Management",
+    "headerTitle": "Quản lý đơn hàng NCC",
+    "textColor": {
+      "light": "black",
+      "dark": "white"
+    },
+    "statusBar": "transparent",
+    "actionBarHidden": true,
+    "hideIOSSafeAreaBottom": true,
+    "hideAndroidBottomNavigationBar": false
+  },
+  "listCSS": [],
+  "listSyncJS": [],
+  "listAsyncJS": []
+}

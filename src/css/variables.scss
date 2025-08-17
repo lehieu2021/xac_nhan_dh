@@ -1,0 +1,156 @@
+// Company Brand Colors
+:root {
+  // Primary Colors
+  --company-primary: #04A1B3;
+  --company-primary-light: #05b8cc;
+  --company-primary-dark: #038a9a;
+  --company-primary-50: #f0fdfd;
+  --company-primary-100: #ccfbf1;
+  --company-primary-200: #99f6e4;
+  --company-primary-300: #5eead4;
+  --company-primary-400: #2dd4bf;
+  --company-primary-500: #04A1B3;
+  --company-primary-600: #038a9a;
+  --company-primary-700: #047857;
+  --company-primary-800: #065f46;
+  --company-primary-900: #064e3b;
+  
+  // Semantic Colors
+  --success: #10b981;
+  --success-light: #34d399;
+  --success-dark: #059669;
+  
+  --warning: #f59e0b;
+  --warning-light: #fbbf24;
+  --warning-dark: #d97706;
+  
+  --error: #ef4444;
+  --error-light: #f87171;
+  --error-dark: #dc2626;
+  
+  --info: #3b82f6;
+  --info-light: #60a5fa;
+  --info-dark: #2563eb;
+  
+  // Neutral Colors
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+  
+  // Background Colors
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --bg-tertiary: #f3f4f6;
+  
+  // Text Colors
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-tertiary: #6b7280;
+  --text-disabled: #9ca3af;
+  
+  // Border Colors
+  --border-primary: #e5e7eb;
+  --border-secondary: #d1d5db;
+  --border-focus: #04A1B3;
+  
+  // Shadow Colors
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-focus: 0 0 0 3px rgba(4, 161, 179, 0.1);
+}
+
+// Company Brand Color Classes
+.company-primary {
+  color: var(--company-primary);
+}
+
+.company-primary-bg {
+  background-color: var(--company-primary);
+}
+
+.company-primary-border {
+  border-color: var(--company-primary);
+}
+
+.company-primary-focus {
+  &:focus {
+    border-color: var(--company-primary);
+    box-shadow: var(--shadow-focus);
+  }
+}
+
+// Button Variants
+.btn-company-primary {
+  background-color: var(--company-primary);
+  border-color: var(--company-primary);
+  color: white;
+  
+  &:hover {
+    background-color: var(--company-primary-dark);
+    border-color: var(--company-primary-dark);
+  }
+  
+  &:active {
+    background-color: var(--company-primary-dark);
+    border-color: var(--company-primary-dark);
+  }
+  
+  &:focus {
+    box-shadow: var(--shadow-focus);
+  }
+}
+
+.btn-company-secondary {
+  background-color: white;
+  border-color: var(--company-primary);
+  color: var(--company-primary);
+  
+  &:hover {
+    background-color: var(--company-primary-50);
+  }
+  
+  &:active {
+    background-color: var(--company-primary-100);
+  }
+}
+
+// Status Colors
+.status-pending {
+  background-color: var(--warning-light);
+  color: var(--warning-dark);
+}
+
+.status-confirmed {
+  background-color: var(--success-light);
+  color: var(--success-dark);
+}
+
+.status-rejected {
+  background-color: var(--error-light);
+  color: var(--error-dark);
+}
+
+// Focus States
+.focus-company-primary {
+  &:focus {
+    border-color: var(--company-primary);
+    box-shadow: var(--shadow-focus);
+  }
+}
+
+// Hover States
+.hover-company-primary {
+  &:hover {
+    background-color: var(--company-primary);
+    border-color: var(--company-primary);
+    color: white;
+  }
+}
