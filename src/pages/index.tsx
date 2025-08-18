@@ -234,15 +234,7 @@ function HomePage() {
     
     const urgentCount = Object.keys(groupedPendingOrders).length;
     
-    // Debug: Log số lượng đơn hàng trên các trang
-    console.log('=== DEBUG ORDER COUNTS ===');
-    console.log('draftOrders (chưa xác nhận):', draftOrders.length);
-    console.log('allDraftOrders (tất cả):', allDraftOrders.length);
-    console.log('pendingOrders (chưa xác nhận):', pendingOrders.length);
-    console.log('groupedPendingOrders (nhóm chưa xác nhận):', Object.keys(groupedPendingOrders).length);
-    console.log('urgentCount (số nhóm chưa xác nhận):', urgentCount);
-    
-    // Log chi tiết trạng thái các đơn hàng
+    // Tính số đơn hàng theo trạng thái
     const statusCounts = allDraftOrders.reduce((acc, order) => {
       const status = order.crdfd_ncc_nhan_don;
       if (status === 191920000 || status === null || status === undefined) {
@@ -254,8 +246,6 @@ function HomePage() {
       }
       return acc;
     }, { pending: 0, confirmed: 0, rejected: 0 });
-    
-    console.log('Status breakdown:', statusCounts);
     return (
       <Box>
         <HomeDashboard 

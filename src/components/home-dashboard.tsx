@@ -39,33 +39,12 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
       
       const finalResult = isToday || isTodayAlt;
       
-      // Debug: Log để kiểm tra
-      if (finalResult) {
-        console.log('Found today delivery order:', {
-          product: order.cr1bb_tensanpham,
-          deliveryDate: order.crdfd_xac_nhan_ngay_giao_ncc,
-          parsedDate: deliveryDate.toISOString(),
-          todayString,
-          deliveryString,
-          status: order.crdfd_ncc_nhan_don
-        });
-      }
-      
       return finalResult;
     } catch (error) {
       console.error('Error parsing delivery date:', error, order.crdfd_xac_nhan_ngay_giao_ncc);
       return false;
     }
   });
-
-  // Debug: Log tổng số đơn hàng
-  console.log('Total allDraftOrders:', allDraftOrders.length);
-  console.log('Today delivery orders:', todayDeliveryOrders.length);
-  console.log('Today delivery orders details:', todayDeliveryOrders.map(order => ({
-    product: order.cr1bb_tensanpham,
-    deliveryDate: order.crdfd_xac_nhan_ngay_giao_ncc,
-    status: order.crdfd_ncc_nhan_don
-  })));
 
   // Tính toán đơn hàng sắp đến hạn giao (trong 3 ngày tới)
   const upcomingDeliveryOrders = allDraftOrders.filter(order => {
@@ -137,8 +116,6 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
         </Text>
       </Box>
 
-
-
       {/* Alerts */}
       <Box className="bg-white rounded-lg p-4 mb-4 mx-4 shadow-sm">
         <Text className="text-gray-900 font-semibold mb-3" style={{ fontSize: '16px' }}>
@@ -148,12 +125,12 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
           <Box className="flex items-start space-x-3 p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
             <Text style={{ fontSize: '16px' }}>🔴</Text>
             <Box className="flex-1">
-                             <Text className="text-red-800 font-medium" style={{ fontSize: '14px' }}>
-                 Khẩn cấp: {urgentCount} đơn hàng đang chờ xác nhận
-               </Text>
-               <Text className="text-red-600" style={{ fontSize: '12px' }}>
-                 {urgentCount > 0 ? 'Vui lòng kiểm tra và phản hồi sớm' : 'Chưa có đơn gấp'}
-               </Text>
+              <Text className="text-red-800 font-medium" style={{ fontSize: '14px' }}>
+                Khẩn cấp: {urgentCount} đơn hàng đang chờ xác nhận
+              </Text>
+              <Text className="text-red-600" style={{ fontSize: '12px' }}>
+                {urgentCount > 0 ? 'Vui lòng kiểm tra và phản hồi sớm' : 'Chưa có đơn gấp'}
+              </Text>
             </Box>
           </Box>
           
@@ -163,19 +140,13 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
               <Text className="text-yellow-800 font-medium" style={{ fontSize: '14px' }}>
                 Nhắc nhở: {upcomingDeliveryOrders.length} đơn hàng sắp đến hạn giao
               </Text>
-                             <Text className="text-yellow-600" style={{ fontSize: '12px' }}>
-                 {upcomingDeliveryOrders.length > 0 ? 'Vui lòng chuẩn bị giao hàng sớm' : 'Chưa có đơn hàng sắp đến hạn'}
-               </Text>
+              <Text className="text-yellow-600" style={{ fontSize: '12px' }}>
+                {upcomingDeliveryOrders.length > 0 ? 'Vui lòng chuẩn bị giao hàng sớm' : 'Chưa có đơn hàng sắp đến hạn'}
+              </Text>
             </Box>
           </Box>
-
-
         </Box>
       </Box>
-
-
-
-
 
       {/* Today Schedule */}
       <Box className="bg-white rounded-lg p-4 mb-4 mx-4 shadow-sm">
@@ -185,21 +156,21 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
         
         {todayDeliveryOrders.length > 0 ? (
           <Box className="space-y-3">
-                         {todayDeliveryOrders.map((order, index) => (
-               <Box key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                 <Box className="flex-1">
-                   <Text className="font-medium" style={{ fontSize: '14px' }}>
-                     {order.cr1bb_tensanpham || 'Sản phẩm không có tên'}
-                   </Text>
-                   <Text className="text-gray-600" style={{ fontSize: '12px' }}>
-                     {order.crdfd_nhanvienmuahang} • {order.crdfd_xac_nhan_so_luong_ncc || order.crdfd_soluong} {order.cr1bb_onvical}
-                   </Text>
-                 </Box>
-                 <Box>
-                   <Text style={{ fontSize: '16px' }}>📦</Text>
-                 </Box>
-               </Box>
-             ))}
+            {todayDeliveryOrders.map((order, index) => (
+              <Box key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                <Box className="flex-1">
+                  <Text className="font-medium" style={{ fontSize: '14px' }}>
+                    {order.cr1bb_tensanpham || 'Sản phẩm không có tên'}
+                  </Text>
+                  <Text className="text-gray-600" style={{ fontSize: '12px' }}>
+                    {order.crdfd_nhanvienmuahang} • {order.crdfd_xac_nhan_so_luong_ncc || order.crdfd_soluong} {order.cr1bb_onvical}
+                  </Text>
+                </Box>
+                <Box>
+                  <Text style={{ fontSize: '16px' }}>📦</Text>
+                </Box>
+              </Box>
+            ))}
           </Box>
         ) : (
           <Box className="text-center py-4">

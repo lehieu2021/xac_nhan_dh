@@ -1,4 +1,4 @@
-import { Box, Text, Button } from "zmp-ui";
+import { Box, Text, Button, Icon } from "zmp-ui";
 
 interface BottomNavigationProps {
   activeTab: string;
@@ -27,6 +27,12 @@ const BottomNavigation = ({ activeTab, onTabChange }: BottomNavigationProps) => 
             <polyline points="10,9 9,9 8,9"/>
           </svg>
         );
+      case 'chat':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        );
       case 'profile':
         return (
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -36,6 +42,31 @@ const BottomNavigation = ({ activeTab, onTabChange }: BottomNavigationProps) => 
         );
       default:
         return null;
+    }
+  };
+
+  const handleTabClick = (tabId: string) => {
+    if (tabId === 'chat') {
+      // Mở chat với OA hỗ trợ
+      try {
+        // Sử dụng API chuẩn của Zalo Mini App
+        if (typeof window !== 'undefined' && (window as any).zmp) {
+          (window as any).zmp.openChat({ type: 'oa', id: '75981835510922288' });
+        } else if (typeof (window as any).zmp !== 'undefined') {
+          (window as any).zmp.openChat({ type: 'oa', id: '75981835510922288' });
+        } else {
+          // Fallback: mở link chat trực tiếp
+          const chatUrl = `https://zalo.me/75981835510922288`;
+          window.open(chatUrl, '_blank');
+        }
+      } catch (error) {
+        console.error('Không thể mở chat:', error);
+        // Fallback: mở link chat trực tiếp
+        const chatUrl = `https://zalo.me/75981835510922288`;
+        window.open(chatUrl, '_blank');
+      }
+    } else {
+      onTabChange(tabId);
     }
   };
 
@@ -49,6 +80,12 @@ const BottomNavigation = ({ activeTab, onTabChange }: BottomNavigationProps) => 
       id: 'orders',
       label: 'Đơn hàng',
       icon: 'orders'
+    },
+    {
+      id: 'chat',
+      label: 'Chat',
+      icon: 'chat',
+      badge: 2
     },
     {
       id: 'profile',
@@ -76,33 +113,46 @@ const BottomNavigation = ({ activeTab, onTabChange }: BottomNavigationProps) => 
               key={tab.id}
               variant="tertiary"
               size="medium"
-              onClick={() => onTabChange(tab.id)}
+              onClick={() => handleTabClick(tab.id)}
               className="flex flex-col items-center justify-center min-w-0 flex-1 transition-all duration-200 hover:scale-105"
-                             style={{
-                 background: 'transparent',
-                 border: 'none',
-                 padding: '8px 6px',
-                 height: 'auto',
-                 borderRadius: '12px'
-               }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '8px 6px',
+                height: 'auto',
+                borderRadius: '12px'
+              }}
             >
-                             <Box className="flex flex-col items-center space-y-1">
-                 <Box 
-                   className={`flex items-center justify-center p-1.5 rounded-full transition-all duration-200 ${
-                     isActive ? 'bg-teal-50' : 'hover:bg-gray-50'
-                   }`}
-                   style={{ minHeight: '20px' }}
-                 >
-                   {getIcon(tab.icon, isActive)}
-                 </Box>
-                 <Text 
-                   className={`text-sm font-medium transition-all duration-200 ${
-                     isActive ? 'text-teal-600' : 'text-gray-500'
-                   }`}
-                   style={{ lineHeight: '1.2' }}
-                 >
-                   {tab.label}
-                 </Text>
+              <Box className="flex flex-col items-center space-y-1 relative">
+                <Box 
+                  className={`flex items-center justify-center p-1.5 rounded-full transition-all duration-200 ${
+                    isActive ? 'bg-teal-50' : 'hover:bg-gray-50'
+                  }`}
+                  style={{ minHeight: '20px' }}
+                >
+                  {getIcon(tab.icon, isActive)}
+                  {tab.badge && (
+                    <Box 
+                      className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full flex items-center justify-center"
+                      style={{ 
+                        minWidth: '18px', 
+                        height: '18px',
+                        fontSize: '10px',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      {tab.badge}
+                    </Box>
+                  )}
+                </Box>
+                <Text 
+                  className={`text-sm font-medium transition-all duration-200 ${
+                    isActive ? 'text-teal-600' : 'text-gray-500'
+                  }`}
+                  style={{ lineHeight: '1.2' }}
+                >
+                  {tab.label}
+                </Text>
                 {isActive && (
                   <Box 
                     className="w-1 h-1 bg-teal-600 rounded-full"
