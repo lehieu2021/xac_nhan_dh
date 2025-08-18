@@ -17,21 +17,29 @@ const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], 
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [allDraftOrders, setAllDraftOrders] = useState<DraftOrder[]>([]);
 
   useEffect(() => {
-    const fetchSupplierProfile = async () => {
+    const fetchData = async () => {
       try {
+        // Fetch supplier profile
         const supplierData = await apiService.getSupplierProfile(supplierId);
         setSupplier(supplierData);
+        
+        // Fetch all draft orders for statistics
+        if (supplierData?.cr44a_manhacungcap) {
+          const allOrders = await apiService.getAllDraftOrders(supplierData.cr44a_manhacungcap);
+          setAllDraftOrders(allOrders);
+        }
       } catch (error) {
-        console.error('Error fetching supplier profile:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
     if (supplierId) {
-      fetchSupplierProfile();
+      fetchData();
     }
   }, [supplierId]);
 
@@ -51,15 +59,39 @@ const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], 
     setIsChangePasswordModalOpen(true);
   };
 
-  const totalDraftGroups = (() => {
+  // Tính toán thống kê từ allDraftOrders (bao gồm tất cả trạng thái)
+  const orderStats = (() => {
     const groups: Record<string, DraftOrder[]> = {};
-    draftOrders.forEach(item => {
+    allDraftOrders.forEach(item => {
       const date = new Date(item.createdon).toLocaleDateString('vi-VN');
       const key = `${item.crdfd_nhanvienmuahang} - ${date}`;
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     });
-    return Object.keys(groups).length;
+    
+    const totalGroups = Object.keys(groups).length;
+    
+    // Tính số nhóm đã xác nhận (có ít nhất 1 item có crdfd_ncc_nhan_don = 191920001)
+    const confirmedGroups = Object.values(groups).filter(group => 
+      group.some(item => item.crdfd_ncc_nhan_don === 191920001)
+    ).length;
+    
+    // Tính số nhóm từ chối (có ít nhất 1 item có crdfd_ncc_nhan_don = 191920002)
+    const rejectedGroups = Object.values(groups).filter(group => 
+      group.some(item => item.crdfd_ncc_nhan_don === 191920002)
+    ).length;
+    
+    // Tính số nhóm chưa xác nhận (tất cả items có crdfd_ncc_nhan_don = 191920000 hoặc null/undefined)
+    const pendingGroups = Object.values(groups).filter(group => 
+      group.every(item => item.crdfd_ncc_nhan_don === 191920000 || item.crdfd_ncc_nhan_don === null || item.crdfd_ncc_nhan_don === undefined)
+    ).length;
+    
+    return {
+      total: totalGroups,
+      confirmed: confirmedGroups,
+      rejected: rejectedGroups,
+      pending: pendingGroups
+    };
   })();
 
   return (
@@ -135,36 +167,36 @@ const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], 
          <Box className="grid grid-cols-2 gap-4">
            <Box className="text-center p-3 bg-blue-50 rounded-lg">
              <Text className="font-bold" style={{ color: '#04A1B3', fontSize: '20px' }}>
-               {totalDraftGroups}
+               {orderStats.total}
              </Text>
              <Text className="text-gray-600" style={{ fontSize: '12px' }}>
                Tổng đơn hàng
              </Text>
            </Box>
-                       <Box className="text-center p-3 bg-green-50 rounded-lg">
-              <Text className="font-bold text-green-600" style={{ fontSize: '20px' }}>
-                {orders.filter(order => order.crdfd_status === 'confirmed').length}
-              </Text>
-              <Text className="text-gray-600" style={{ fontSize: '12px' }}>
-                Đã xác nhận
-              </Text>
-            </Box>
-            <Box className="text-center p-3 bg-yellow-50 rounded-lg">
-              <Text className="font-bold text-yellow-600" style={{ fontSize: '20px' }}>
-                {orders.filter(order => order.crdfd_status === 'pending').length}
-              </Text>
-              <Text className="text-gray-600" style={{ fontSize: '12px' }}>
-                Đang chờ
-              </Text>
-            </Box>
-            <Box className="text-center p-3 bg-red-50 rounded-lg">
-              <Text className="font-bold text-red-600" style={{ fontSize: '20px' }}>
-                {orders.filter(order => order.crdfd_status === 'rejected').length}
-              </Text>
-              <Text className="text-gray-600" style={{ fontSize: '12px' }}>
-                Từ chối
-              </Text>
-            </Box>
+           <Box className="text-center p-3 bg-green-50 rounded-lg">
+             <Text className="font-bold text-green-600" style={{ fontSize: '20px' }}>
+               {orderStats.confirmed}
+             </Text>
+             <Text className="text-gray-600" style={{ fontSize: '12px' }}>
+               Đã xác nhận
+             </Text>
+           </Box>
+           <Box className="text-center p-3 bg-yellow-50 rounded-lg">
+             <Text className="font-bold text-yellow-600" style={{ fontSize: '20px' }}>
+               {orderStats.pending}
+             </Text>
+             <Text className="text-gray-600" style={{ fontSize: '12px' }}>
+               Đang chờ
+             </Text>
+           </Box>
+           <Box className="text-center p-3 bg-red-50 rounded-lg">
+             <Text className="font-bold text-red-600" style={{ fontSize: '20px' }}>
+               {orderStats.rejected}
+             </Text>
+             <Text className="text-gray-600" style={{ fontSize: '12px' }}>
+               Từ chối
+             </Text>
+           </Box>
          </Box>
        </Box>
 

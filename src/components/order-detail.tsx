@@ -202,6 +202,7 @@ const OrderDetail = ({ order, onConfirm, onReject, onBack }: OrderDetailProps) =
                           <DatePicker
                             value={item.crdfd_deliverydate ? new Date(item.crdfd_deliverydate.split('/').reverse().join('-')) : new Date()}
                             onChange={(date) => handleDeliveryDateChange(item.crdfd_orderitemid, date)}
+                            placeholder="Chọn ngày giao hàng"
                           />
                         </Box>
                      ) : (

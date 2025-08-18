@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Box, Text, Page, Button, Icon, Input } from "zmp-ui";
 import OrderCard from "@/components/order-card";
-import OrderDetail from "@/components/order-detail";
+import DraftOrderDetail from "@/components/draft-order-detail";
 import Header from "@/components/header";
 import BottomNavigation from "@/components/bottom-navigation";
 import Profile from "@/components/profile";
@@ -11,15 +11,16 @@ import Login from "@/components/Login";
 import { apiService, Order, Supplier, DraftOrder } from "../services/api";
 
 function HomePage() {
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<DraftOrder | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [currentView, setCurrentView] = useState("home");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState<Supplier | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<DraftOrder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [draftOrders, setDraftOrders] = useState<DraftOrder[]>([]);
+  const [allDraftOrders, setAllDraftOrders] = useState<DraftOrder[]>([]);
 
   // Fetch orders when user is logged in
   useEffect(() => {
@@ -39,23 +40,24 @@ function HomePage() {
         (reason) => ({ ok: false as const, reason })
       );
 
-      const [ordersRes, draftsRes] = await Promise.all([
-        wrap(apiService.getSupplierOrders(userInfo.cr44a_manhacungcap)),
-        wrap(apiService.getDraftOrders(userInfo.cr44a_manhacungcap)),
-      ]);
-
-      if (ordersRes.ok) {
-        setOrders(ordersRes.value);
-      } else {
-        console.warn('getSupplierOrders failed:', ordersRes.reason);
-        setOrders([]);
-      }
+      const draftsRes = await wrap(apiService.getDraftOrders(userInfo.cr44a_manhacungcap));
+      const allDraftsRes = await wrap(apiService.getAllDraftOrders(userInfo.cr44a_manhacungcap));
 
       if (draftsRes.ok) {
         setDraftOrders(draftsRes.value);
+        // Sử dụng draft orders thay vì orders cũ
+        setOrders(draftsRes.value);
       } else {
         console.warn('getDraftOrders failed:', draftsRes.reason);
         setDraftOrders([]);
+        setOrders([]);
+      }
+
+      if (allDraftsRes.ok) {
+        setAllDraftOrders(allDraftsRes.value);
+      } else {
+        console.warn('getAllDraftOrders failed:', allDraftsRes.reason);
+        setAllDraftOrders([]);
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -65,30 +67,46 @@ function HomePage() {
   };
 
   const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.crdfd_ordernumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.crdfd_customername.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = order.cr1bb_tensanpham.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         order.crdfd_nhanvienmuahang.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (activeTab === "all") return matchesSearch;
-    if (activeTab === "pending") return order.crdfd_status === 'pending' && matchesSearch;
-    if (activeTab === "confirmed") return order.crdfd_status === 'confirmed' && matchesSearch;
-    if (activeTab === "rejected") return order.crdfd_status === 'rejected' && matchesSearch;
+    if (activeTab === "pending") return order.crdfd_ncc_nhan_don === 191920000 && matchesSearch;
+    if (activeTab === "confirmed") return order.crdfd_ncc_nhan_don === 191920001 && matchesSearch;
+    if (activeTab === "rejected") return order.crdfd_ncc_nhan_don === 191920002 && matchesSearch;
     
     return matchesSearch;
   });
 
   const handleViewDetails = async (orderId: string) => {
     try {
-      const orderDetails = await apiService.getOrderDetails(orderId);
-      setSelectedOrder(orderDetails);
+      // Tìm order trong danh sách hiện tại
+      const order = orders.find(o => o.crdfd_kehoachhangve_draftid === orderId);
+      if (order) {
+        setSelectedOrder(order);
+      }
     } catch (error) {
-      console.error('Error fetching order details:', error);
+      console.error('Error finding order:', error);
       alert('Không thể tải chi tiết đơn hàng');
     }
   };
 
-  const handleConfirmOrder = async (orderId: string, confirmedItems: any[], notes: string) => {
+  const handleConfirmOrder = async (orderIds: string[], updatedItems: { id: string; quantity: number; deliveryDate: string }[], notes: string) => {
     try {
-      await apiService.updateOrder(orderId, confirmedItems, notes);
+      for (const orderId of orderIds) {
+        const order = orders.find(o => o.crdfd_kehoachhangve_draftid === orderId);
+        if (order) {
+          const updatedItem = updatedItems.find(item => item.id === orderId);
+          await apiService.updateDraftOrderStatus(
+            orderId, 
+            191920001, // Đã xác nhận
+            updatedItem?.quantity || order.crdfd_soluong,
+            order.crdfd_soluong,
+            notes,
+            updatedItem?.deliveryDate
+          );
+        }
+      }
       alert("Đã xác nhận đơn hàng thành công!");
       setSelectedOrder(null);
       fetchOrders(); // Refresh orders list
@@ -98,9 +116,19 @@ function HomePage() {
     }
   };
 
-  const handleRejectOrder = async (orderId: string, reason: string) => {
+  const handleRejectOrder = async (orderIds: string[]) => {
     try {
-      await apiService.rejectOrder(orderId, reason);
+      for (const orderId of orderIds) {
+        const order = orders.find(o => o.crdfd_kehoachhangve_draftid === orderId);
+        if (order) {
+          await apiService.updateDraftOrderStatus(
+            orderId, 
+            191920002, // Từ chối nhận đơn
+            0, // Số lượng xác nhận = 0
+            order.crdfd_soluong
+          );
+        }
+      }
       alert("Đã từ chối đơn hàng!");
       setSelectedOrder(null);
       fetchOrders(); // Refresh orders list
@@ -158,11 +186,11 @@ function HomePage() {
   if (selectedOrder) {
     return (
       <Box>
-        <OrderDetail
-          order={selectedOrder}
+        <DraftOrderDetail
+          orders={[selectedOrder]}
+          onBack={handleBack}
           onConfirm={handleConfirmOrder}
           onReject={handleRejectOrder}
-          onBack={handleBack}
         />
         <BottomNavigation activeTab={currentView} onTabChange={handleTabChange} />
       </Box>
@@ -188,21 +216,53 @@ function HomePage() {
 
   // Home View - Dashboard
   if (currentView === 'home') {
-    // Tính số đơn gấp từ draftOrders: nhóm theo người mua hàng + ngày tạo; nhóm nào có item có crdfd_urgent_type thì tính là 1
-    const groupedDrafts: Record<string, DraftOrder[]> = {};
-    draftOrders.forEach(item => {
+    // Tính số đơn hàng chưa xác nhận từ allDraftOrders
+    const pendingOrders = allDraftOrders.filter(order => 
+      order.crdfd_ncc_nhan_don === 191920000 || 
+      order.crdfd_ncc_nhan_don === null || 
+      order.crdfd_ncc_nhan_don === undefined
+    );
+    
+    // Nhóm các đơn hàng chưa xác nhận theo nhân viên + ngày
+    const groupedPendingOrders: Record<string, DraftOrder[]> = {};
+    pendingOrders.forEach(item => {
       const date = new Date(item.createdon).toLocaleDateString('vi-VN');
       const key = `${item.crdfd_nhanvienmuahang} - ${date}`;
-      if (!groupedDrafts[key]) groupedDrafts[key] = [];
-      groupedDrafts[key].push(item);
+      if (!groupedPendingOrders[key]) groupedPendingOrders[key] = [];
+      groupedPendingOrders[key].push(item);
     });
-    const urgentCount = Object.values(groupedDrafts).filter(group => group.some(i => i.crdfd_urgent_type !== null && i.crdfd_urgent_type !== undefined)).length;
+    
+    const urgentCount = Object.keys(groupedPendingOrders).length;
+    
+    // Debug: Log số lượng đơn hàng trên các trang
+    console.log('=== DEBUG ORDER COUNTS ===');
+    console.log('draftOrders (chưa xác nhận):', draftOrders.length);
+    console.log('allDraftOrders (tất cả):', allDraftOrders.length);
+    console.log('pendingOrders (chưa xác nhận):', pendingOrders.length);
+    console.log('groupedPendingOrders (nhóm chưa xác nhận):', Object.keys(groupedPendingOrders).length);
+    console.log('urgentCount (số nhóm chưa xác nhận):', urgentCount);
+    
+    // Log chi tiết trạng thái các đơn hàng
+    const statusCounts = allDraftOrders.reduce((acc, order) => {
+      const status = order.crdfd_ncc_nhan_don;
+      if (status === 191920000 || status === null || status === undefined) {
+        acc.pending++;
+      } else if (status === 191920001) {
+        acc.confirmed++;
+      } else if (status === 191920002) {
+        acc.rejected++;
+      }
+      return acc;
+    }, { pending: 0, confirmed: 0, rejected: 0 });
+    
+    console.log('Status breakdown:', statusCounts);
     return (
       <Box>
         <HomeDashboard 
           onViewAllOrders={() => setCurrentView('orders')}
           supplierName={userInfo?.crdfd_suppliername}
           urgentCount={urgentCount}
+          allDraftOrders={allDraftOrders}
         />
         <BottomNavigation activeTab={currentView} onTabChange={handleTabChange} />
       </Box>
@@ -217,6 +277,7 @@ function HomePage() {
       <OrdersPage 
         supplierCode={userInfo?.cr44a_manhacungcap || ""}
         onBack={() => setCurrentView('home')}
+        allDraftOrders={allDraftOrders}
       />
       <BottomNavigation activeTab={currentView} onTabChange={handleTabChange} />
     </Box>

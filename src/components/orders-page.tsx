@@ -1,33 +1,41 @@
 import { Box, Text, Button, Spinner, Input } from "zmp-ui";
 import { useState, useEffect } from "react";
 import Header from "./header";
-import { apiService, DraftOrder } from "../services/api";
+import { DraftOrder, apiService } from "../services/api";
 import DraftOrderDetail from "./draft-order-detail";
 
 interface OrdersPageProps {
   supplierCode: string;
   onBack: () => void;
+  allDraftOrders?: DraftOrder[];
 }
 
 interface GroupedOrders {
   [key: string]: DraftOrder[];
 }
 
-const OrdersPage = ({ supplierCode, onBack }: OrdersPageProps) => {
+const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) => {
   const [orders, setOrders] = useState<DraftOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedOrderGroup, setSelectedOrderGroup] = useState<DraftOrder[] | null>(null);
 
   useEffect(() => {
-    loadOrders();
-  }, [supplierCode]);
+    if (allDraftOrders && allDraftOrders.length > 0) {
+      // Sử dụng dữ liệu đã có sẵn
+      setOrders(allDraftOrders);
+      setLoading(false);
+    } else {
+      // Load từ API nếu không có dữ liệu sẵn
+      loadOrders();
+    }
+  }, [supplierCode, allDraftOrders]);
 
   const loadOrders = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiService.getDraftOrders(supplierCode);
+      const data = await apiService.getAllDraftOrders(supplierCode);
       setOrders(data);
     } catch (err) {
       console.error('Error loading orders:', err);
@@ -70,6 +78,12 @@ const OrdersPage = ({ supplierCode, onBack }: OrdersPageProps) => {
     groupedOrders[key].push(order);
   });
 
+  // Debug: Log số lượng đơn hàng trong OrdersPage
+  console.log('=== ORDERS PAGE DEBUG ===');
+  console.log('OrdersPage - Total orders:', orders.length);
+  console.log('OrdersPage - Filtered orders:', filteredOrders.length);
+  console.log('OrdersPage - Grouped orders:', Object.keys(groupedOrders).length);
+
   const handleViewDetails = (orders: DraftOrder[]) => {
     setSelectedOrderGroup(orders);
   };
@@ -84,7 +98,23 @@ const OrdersPage = ({ supplierCode, onBack }: OrdersPageProps) => {
     notes: string
   ) => {
     try {
-      // TODO: Implement API call to confirm order
+      // Cập nhật trạng thái crdfd_ncc_nhan_don cho tất cả đơn hàng
+      for (const orderId of orderIds) {
+        const updatedItem = updatedItems.find(item => item.id === orderId);
+        const originalOrder = orders.find(order => order.crdfd_kehoachhangve_draftid === orderId);
+        
+        if (updatedItem && originalOrder) {
+                     await apiService.updateDraftOrderStatus(
+             orderId, 
+             191920001, // Đã xác nhận
+             updatedItem.quantity,
+             originalOrder.crdfd_soluong,
+             notes, // Truyền ghi chú
+             updatedItem.deliveryDate // Truyền ngày giao
+           );
+        }
+      }
+      
       alert('Đã xác nhận đơn hàng thành công!');
       setSelectedOrderGroup(null);
       loadOrders(); // Refresh orders
@@ -94,9 +124,22 @@ const OrdersPage = ({ supplierCode, onBack }: OrdersPageProps) => {
     }
   };
 
-  const handleRejectOrder = async (orderIds: string[], reason: string) => {
+  const handleRejectOrder = async (orderIds: string[]) => {
     try {
-      // TODO: Implement API call to reject order
+      // Cập nhật trạng thái crdfd_ncc_nhan_don cho tất cả đơn hàng
+      for (const orderId of orderIds) {
+        const originalOrder = orders.find(order => order.crdfd_kehoachhangve_draftid === orderId);
+        
+        if (originalOrder) {
+          await apiService.updateDraftOrderStatus(
+            orderId, 
+            191920002, // Từ chối nhận đơn
+            0, // Số lượng xác nhận = 0 (hết hàng)
+            originalOrder.crdfd_soluong
+          );
+        }
+      }
+      
       alert('Đã từ chối đơn hàng!');
       setSelectedOrderGroup(null);
       loadOrders(); // Refresh orders
@@ -125,6 +168,20 @@ const OrdersPage = ({ supplierCode, onBack }: OrdersPageProps) => {
     if (diffDays === 0) return 'Giao hôm nay';
     if (diffDays <= 3) return `Còn ${diffDays} ngày`;
     return 'Đúng hạn';
+  };
+
+  // Helper function để hiển thị trạng thái NCC nhận đơn
+  const getNCCStatusDisplay = (status?: number) => {
+    switch (status) {
+      case 191920000:
+        return { text: 'Chưa xác nhận', color: '#6B7280', bgColor: '#F3F4F6' };
+      case 191920001:
+        return { text: 'Đã xác nhận', color: '#059669', bgColor: '#D1FAE5' };
+      case 191920002:
+        return { text: 'Từ chối nhận đơn', color: '#DC2626', bgColor: '#FEE2E2' };
+      default:
+        return { text: 'Chưa xác nhận', color: '#6B7280', bgColor: '#F3F4F6' };
+    }
   };
 
   if (selectedOrderGroup) {
@@ -192,32 +249,57 @@ const OrdersPage = ({ supplierCode, onBack }: OrdersPageProps) => {
           <Text className="text-gray-900 font-semibold mb-3" style={{ fontSize: '16px' }}>
             📊 Thống kê
           </Text>
-                     <Box className="grid grid-cols-3 gap-4">
+                                           <Box className="grid grid-cols-4 gap-3">
              <Box className="text-center">
-               <Text className="text-2xl font-bold text-blue-600">
+               <Text className="text-xl font-bold text-blue-600">
                  {Object.keys(groupedOrders).length}
                </Text>
-               <Text className="text-sm text-gray-600">Tổng đơn</Text>
+               <Text className="text-xs text-gray-600">Tổng đơn</Text>
              </Box>
-                         <Box className="text-center">
-               <Text className="text-2xl font-bold text-yellow-600">
+             <Box className="text-center">
+               <Text className="text-xl font-bold text-green-600">
                  {Object.values(groupedOrders).filter(group => {
                    const firstOrder = group[0];
-                   const diffDays = Math.ceil((new Date(firstOrder.cr1bb_ngaygiaodukien).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                   return diffDays <= 3 && diffDays >= 0;
+                   // Đơn đã xác nhận (bao gồm cả từ chối)
+                   return (firstOrder.crdfd_ncc_nhan_don === 191920001 || 
+                           firstOrder.crdfd_ncc_nhan_don === 191920002);
                  }).length}
                </Text>
-               <Text className="text-sm text-gray-600">Sắp đến hạn</Text>
+               <Text className="text-xs text-gray-600">Đã xử lý</Text>
              </Box>
-                         <Box className="text-center">
-               <Text className="text-2xl font-bold text-red-600">
+                           <Box className="text-center">
+               <Text className="text-xl font-bold text-orange-600">
                  {Object.values(groupedOrders).filter(group => {
                    const firstOrder = group[0];
-                   const diffDays = Math.ceil((new Date(firstOrder.cr1bb_ngaygiaodukien).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                   return diffDays < 0;
+                   // Đơn mới gửi hôm nay và chưa xử lý
+                   const orderDate = new Date(firstOrder.createdon);
+                   const today = new Date();
+                   const isToday = orderDate.toDateString() === today.toDateString();
+                   const isPending = (firstOrder.crdfd_ncc_nhan_don === 191920000 || 
+                                     firstOrder.crdfd_ncc_nhan_don === null || 
+                                     firstOrder.crdfd_ncc_nhan_don === undefined);
+                   
+                   return isToday && isPending;
                  }).length}
                </Text>
-               <Text className="text-sm text-gray-600">Quá hạn</Text>
+                               <Text className="text-xs text-gray-600">Đơn mới</Text>
+             </Box>
+             <Box className="text-center">
+               <Text className="text-xl font-bold text-red-600">
+                 {Object.values(groupedOrders).filter(group => {
+                   const firstOrder = group[0];
+                   // Đơn chưa xác nhận và ngày tạo đơn trước hôm nay
+                   const orderDate = new Date(firstOrder.createdon);
+                   const today = new Date();
+                   const diffDays = Math.ceil((orderDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                   
+                   return (firstOrder.crdfd_ncc_nhan_don === 191920000 || 
+                           firstOrder.crdfd_ncc_nhan_don === null || 
+                           firstOrder.crdfd_ncc_nhan_don === undefined) &&
+                          diffDays < 0;
+                 }).length}
+               </Text>
+               <Text className="text-xs text-gray-600">Trễ xác nhận</Text>
              </Box>
           </Box>
         </Box>
@@ -248,8 +330,19 @@ const OrdersPage = ({ supplierCode, onBack }: OrdersPageProps) => {
                          {groupKey}
                        </Text>
                      </Box>
-                     <Box className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(groupOrders[0])}`}>
-                       {getStatusText(groupOrders[0])}
+                     <Box className="flex flex-col items-end gap-2">
+                       <Box className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(groupOrders[0])}`}>
+                         {getStatusText(groupOrders[0])}
+                       </Box>
+                       <Box 
+                         className="px-2 py-1 rounded-full text-xs font-medium"
+                         style={{
+                           backgroundColor: getNCCStatusDisplay(groupOrders[0].crdfd_ncc_nhan_don).bgColor,
+                           color: getNCCStatusDisplay(groupOrders[0].crdfd_ncc_nhan_don).color
+                         }}
+                       >
+                         {getNCCStatusDisplay(groupOrders[0].crdfd_ncc_nhan_don).text}
+                       </Box>
                      </Box>
                    </Box>
 
@@ -268,6 +361,19 @@ const OrdersPage = ({ supplierCode, onBack }: OrdersPageProps) => {
                        </Text>
                      </Box>
                    </Box>
+                   
+                   {/* Ngày xác nhận nếu có */}
+                   {groupOrders[0].crdfd_ngay_xac_nhan_ncc && (
+                     <Box className="mb-3">
+                       <Text className="text-gray-500 text-xs mb-1">Ngày xác nhận</Text>
+                       <Text className="text-gray-700 text-sm font-medium">
+                         {formatDate(groupOrders[0].crdfd_ngay_xac_nhan_ncc)}
+                       </Text>
+                     </Box>
+                   )}
+                    
+                    
+                     
 
                    {/* Actions */}
                    <Box className="mt-3 pt-3 border-t border-gray-100">

@@ -2,16 +2,13 @@ import { Box, Text, Button, Input, Spinner, DatePicker } from "zmp-ui";
 import { useState } from "react";
 import Header from "./header";
 import { DraftOrder } from "../services/api";
+import { apiService } from "../services/api";
 
 interface DraftOrderDetailProps {
   orders: DraftOrder[];
   onBack: () => void;
-  onConfirm: (
-    orderIds: string[],
-    updatedItems: { id: string; quantity: number; deliveryDate: string }[],
-    notes: string
-  ) => void;
-  onReject: (orderIds: string[], reason: string) => void;
+  onConfirm: (orderIds: string[], updatedItems: { id: string; quantity: number; deliveryDate: string }[], notes: string) => void;
+  onReject: (orderIds: string[]) => void;
 }
 
 const DraftOrderDetail = ({ orders, onBack, onConfirm, onReject }: DraftOrderDetailProps) => {
@@ -70,6 +67,20 @@ const DraftOrderDetail = ({ orders, onBack, onConfirm, onReject }: DraftOrderDet
     }).format(amount);
   };
 
+  // Helper function để hiển thị trạng thái NCC nhận đơn
+  const getOrderStatusDisplay = (status?: number) => {
+    switch (status) {
+      case 191920000:
+        return { text: 'Chưa xác nhận', color: '#6B7280', bgColor: '#F3F4F6' };
+      case 191920001:
+        return { text: 'Đã xác nhận', color: '#059669', bgColor: '#D1FAE5' };
+      case 191920002:
+        return { text: 'Từ chối nhận đơn', color: '#DC2626', bgColor: '#FEE2E2' };
+      default:
+        return { text: 'Chưa xác nhận', color: '#6B7280', bgColor: '#F3F4F6' };
+    }
+  };
+
   const handleQuantityChange = (orderId: string, newQuantity: number) => {
     setQuantities(prev => ({
       ...prev,
@@ -82,6 +93,19 @@ const DraftOrderDetail = ({ orders, onBack, onConfirm, onReject }: DraftOrderDet
       ...prev,
       [orderId]: 0
     }));
+  };
+
+  // Hàm parse ngày từ format dd/mm/yyyy sang Date object một cách an toàn
+  const parseDisplayDate = (dateString: string): Date => {
+    try {
+      const [day, month, year] = dateString.split('/').map(Number);
+      if (day && month && year) {
+        return new Date(year, month - 1, day);
+      }
+    } catch (error) {
+      console.warn('Invalid date format:', dateString);
+    }
+    return new Date(); // Fallback to current date
   };
 
   const handleDateChange = (orderId: string, date: Date) => {
@@ -99,20 +123,63 @@ const DraftOrderDetail = ({ orders, onBack, onConfirm, onReject }: DraftOrderDet
   };
 
   const handleConfirm = async () => {
-    const updatedItems = orders.map(item => ({
-      id: item.crdfd_kehoachhangve_draftid,
-      quantity: quantities[item.crdfd_kehoachhangve_draftid],
-      deliveryDate: deliveryDatesIso[item.crdfd_kehoachhangve_draftid]
-    }));
-    const orderIds = orders.map(item => item.crdfd_kehoachhangve_draftid);
-    onConfirm(orderIds, updatedItems, notes);
+    try {
+      setIsLoading(true);
+      
+      // Cập nhật trạng thái crdfd_ncc_nhan_don cho tất cả đơn hàng trong nhóm
+      for (const order of orders) {
+        const confirmedQty = quantities[order.crdfd_kehoachhangve_draftid];
+        const originalQty = order.crdfd_soluong;
+        const deliveryDate = deliveryDatesIso[order.crdfd_kehoachhangve_draftid];
+        
+
+        
+        await apiService.updateDraftOrderStatus(
+          order.crdfd_kehoachhangve_draftid, 
+          191920001, // Đã xác nhận
+          confirmedQty,
+          originalQty,
+          notes, // Truyền ghi chú
+          deliveryDate // Truyền ngày giao đã chọn (có thể undefined)
+        );
+      }
+      
+      const updatedItems = orders.map(item => ({
+        id: item.crdfd_kehoachhangve_draftid,
+        quantity: quantities[item.crdfd_kehoachhangve_draftid],
+        deliveryDate: deliveryDatesIso[item.crdfd_kehoachhangve_draftid]
+      }));
+      const orderIds = orders.map(item => item.crdfd_kehoachhangve_draftid);
+      onConfirm(orderIds, updatedItems, notes);
+    } catch (error) {
+      console.error('Error confirming orders:', error);
+      alert('Có lỗi xảy ra khi xác nhận đơn hàng');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleReject = async () => {
-    const reason = prompt('Lý do từ chối đơn hàng:');
-    if (reason) {
+    try {
+      setIsLoading(true);
+      
+      // Cập nhật trạng thái crdfd_ncc_nhan_don cho tất cả đơn hàng trong nhóm
+      for (const order of orders) {
+        await apiService.updateDraftOrderStatus(
+          order.crdfd_kehoachhangve_draftid, 
+          191920002, // Từ chối nhận đơn
+          0, // Số lượng xác nhận = 0 (hết hàng)
+          order.crdfd_soluong
+        );
+      }
+      
       const orderIds = orders.map(item => item.crdfd_kehoachhangve_draftid);
-      onReject(orderIds, reason);
+      onReject(orderIds);
+    } catch (error) {
+      console.error('Error rejecting orders:', error);
+      alert('Có lỗi xảy ra khi từ chối đơn hàng');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -147,6 +214,26 @@ const DraftOrderDetail = ({ orders, onBack, onConfirm, onReject }: DraftOrderDet
                 <Text className="text-gray-500 text-xs font-medium uppercase tracking-wide">Ngày gửi</Text>
                 <Text className="text-gray-700 text-sm font-medium">{formatDate(firstOrder.createdon)}</Text>
               </Box>
+              <Box className="flex items-center justify-between">
+                <Text className="text-gray-500 text-xs font-medium uppercase tracking-wide">Trạng thái</Text>
+                <Box 
+                  className="px-2 py-1 rounded-full text-xs font-medium"
+                  style={{
+                    backgroundColor: getOrderStatusDisplay(firstOrder.crdfd_ncc_nhan_don).bgColor,
+                    color: getOrderStatusDisplay(firstOrder.crdfd_ncc_nhan_don).color
+                  }}
+                >
+                  {getOrderStatusDisplay(firstOrder.crdfd_ncc_nhan_don).text}
+                </Box>
+              </Box>
+              {firstOrder.crdfd_ngay_xac_nhan_ncc && (
+                <Box className="flex items-center justify-between">
+                  <Text className="text-gray-500 text-xs font-medium uppercase tracking-wide">Ngày xác nhận</Text>
+                  <Text className="text-gray-700 text-sm font-medium">{formatDate(firstOrder.crdfd_ngay_xac_nhan_ncc)}</Text>
+                </Box>
+              )}
+
+
             </Box>
           </Box>
         </Box>
@@ -217,8 +304,9 @@ const DraftOrderDetail = ({ orders, onBack, onConfirm, onReject }: DraftOrderDet
                     </Text>
                     <Box style={{ backgroundColor: '#FFFFFF', borderRadius: '8px' }}>
                       <DatePicker
-                        value={displayDates[item.crdfd_kehoachhangve_draftid] ? new Date(displayDates[item.crdfd_kehoachhangve_draftid].split('/').reverse().join('-')) : new Date()}
+                        value={displayDates[item.crdfd_kehoachhangve_draftid] ? parseDisplayDate(displayDates[item.crdfd_kehoachhangve_draftid]) : new Date()}
                         onChange={(date) => handleDateChange(item.crdfd_kehoachhangve_draftid, date)}
+                        placeholder="Chọn ngày giao hàng"
                       />
                     </Box>
                                      </Box>

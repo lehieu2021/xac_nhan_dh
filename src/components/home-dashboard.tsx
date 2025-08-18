@@ -1,15 +1,17 @@
 import { Box, Text, Button } from "zmp-ui";
 import React from "react";
 import Header from "./header";
+import { DraftOrder } from "../services/api";
 
 export interface HomeDashboardProps {
   onViewAllOrders: () => void;
   supplierName?: string;
   urgentCount?: number;
+  allDraftOrders?: DraftOrder[];
   [key: string]: any;
 }
 
-const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplierName, urgentCount = 0 }) => {
+const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplierName, urgentCount = 0, allDraftOrders = [] }) => {
   const currentDate = new Date().toLocaleDateString('vi-VN', { 
     weekday: 'long', 
     year: 'numeric', 
@@ -17,13 +19,98 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
     day: 'numeric' 
   });
 
+  // Tính toán đơn hàng giao hôm nay (có ngày xác nhận giao = hôm nay)
+  const todayDeliveryOrders = allDraftOrders.filter(order => {
+    if (!order.crdfd_xac_nhan_ngay_giao_ncc) return false;
+    
+    try {
+      const deliveryDate = new Date(order.crdfd_xac_nhan_ngay_giao_ncc);
+      const today = new Date();
+      
+      // So sánh ngày (bỏ qua thời gian) - cách 1
+      const isToday = deliveryDate.getFullYear() === today.getFullYear() &&
+                     deliveryDate.getMonth() === today.getMonth() &&
+                     deliveryDate.getDate() === today.getDate();
+      
+      // So sánh ngày - cách 2 (fallback)
+      const todayString = today.toISOString().split('T')[0]; // YYYY-MM-DD
+      const deliveryString = deliveryDate.toISOString().split('T')[0];
+      const isTodayAlt = todayString === deliveryString;
+      
+      const finalResult = isToday || isTodayAlt;
+      
+      // Debug: Log để kiểm tra
+      if (finalResult) {
+        console.log('Found today delivery order:', {
+          product: order.cr1bb_tensanpham,
+          deliveryDate: order.crdfd_xac_nhan_ngay_giao_ncc,
+          parsedDate: deliveryDate.toISOString(),
+          todayString,
+          deliveryString,
+          status: order.crdfd_ncc_nhan_don
+        });
+      }
+      
+      return finalResult;
+    } catch (error) {
+      console.error('Error parsing delivery date:', error, order.crdfd_xac_nhan_ngay_giao_ncc);
+      return false;
+    }
+  });
 
+  // Debug: Log tổng số đơn hàng
+  console.log('Total allDraftOrders:', allDraftOrders.length);
+  console.log('Today delivery orders:', todayDeliveryOrders.length);
+  console.log('Today delivery orders details:', todayDeliveryOrders.map(order => ({
+    product: order.cr1bb_tensanpham,
+    deliveryDate: order.crdfd_xac_nhan_ngay_giao_ncc,
+    status: order.crdfd_ncc_nhan_don
+  })));
 
-  const todaySchedule = [
-    { time: "9:00 AM", orderId: "DH001", customer: "Công ty ABC" },
-    { time: "2:00 PM", orderId: "DH005", customer: "Công ty XYZ" },
-    { time: "4:30 PM", orderId: "DH008", customer: "Công ty DEF" }
-  ];
+  // Tính toán đơn hàng sắp đến hạn giao (trong 3 ngày tới)
+  const upcomingDeliveryOrders = allDraftOrders.filter(order => {
+    if (!order.crdfd_xac_nhan_ngay_giao_ncc) return false;
+    
+    try {
+      const deliveryDate = new Date(order.crdfd_xac_nhan_ngay_giao_ncc);
+      const today = new Date();
+      const threeDaysFromNow = new Date(today);
+      threeDaysFromNow.setDate(today.getDate() + 3);
+      
+      // Chỉ lấy đơn hàng đã xác nhận (crdfd_ncc_nhan_don = 191920001)
+      return order.crdfd_ncc_nhan_don === 191920001 &&
+             deliveryDate > today && 
+             deliveryDate <= threeDaysFromNow;
+    } catch (error) {
+      return false;
+    }
+  });
+
+  // Format thời gian cho lịch giao hàng
+  const formatDeliveryTime = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      // Nếu chỉ có ngày (không có thời gian), hiển thị "Hôm nay"
+      if (date.getHours() === 0 && date.getMinutes() === 0) {
+        return "Hôm nay";
+      }
+      return date.toLocaleTimeString('vi-VN', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    } catch (error) {
+      return "Hôm nay";
+    }
+  };
+
+  // Format ngày cho hiển thị
+  const formatDeliveryDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('vi-VN', { 
+      day: '2-digit', 
+      month: '2-digit' 
+    });
+  };
 
   return (
     <Box className="bg-gray-50 min-h-screen pb-20">
@@ -61,12 +148,12 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
           <Box className="flex items-start space-x-3 p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
             <Text style={{ fontSize: '16px' }}>🔴</Text>
             <Box className="flex-1">
-              <Text className="text-red-800 font-medium" style={{ fontSize: '14px' }}>
-                Khẩn cấp: {urgentCount} đơn hàng cần xác nhận ngay
-              </Text>
-              <Text className="text-red-600" style={{ fontSize: '12px' }}>
-                {urgentCount > 0 ? 'Vui lòng xử lý ngay' : 'Chưa có đơn gấp'}
-              </Text>
+                             <Text className="text-red-800 font-medium" style={{ fontSize: '14px' }}>
+                 Khẩn cấp: {urgentCount} đơn hàng đang chờ xác nhận
+               </Text>
+               <Text className="text-red-600" style={{ fontSize: '12px' }}>
+                 {urgentCount > 0 ? 'Vui lòng kiểm tra và phản hồi sớm' : 'Chưa có đơn gấp'}
+               </Text>
             </Box>
           </Box>
           
@@ -74,11 +161,11 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
             <Text style={{ fontSize: '16px' }}>🟡</Text>
             <Box className="flex-1">
               <Text className="text-yellow-800 font-medium" style={{ fontSize: '14px' }}>
-                Nhắc nhở: 5 đơn hàng sắp đến hạn giao
+                Nhắc nhở: {upcomingDeliveryOrders.length} đơn hàng sắp đến hạn giao
               </Text>
-              <Text className="text-yellow-600" style={{ fontSize: '12px' }}>
-                Cần chuẩn bị giao hàng trong 24h tới
-              </Text>
+                             <Text className="text-yellow-600" style={{ fontSize: '12px' }}>
+                 {upcomingDeliveryOrders.length > 0 ? 'Vui lòng chuẩn bị giao hàng sớm' : 'Chưa có đơn hàng sắp đến hạn'}
+               </Text>
             </Box>
           </Box>
 
@@ -96,28 +183,23 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
           📅 Lịch giao hàng hôm nay
         </Text>
         
-        {todaySchedule.length > 0 ? (
+        {todayDeliveryOrders.length > 0 ? (
           <Box className="space-y-3">
-            {todaySchedule.map((item, index) => (
-              <Box key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                <Box className="w-16 text-center">
-                  <Text className="font-medium" style={{ fontSize: '12px', color: '#04A1B3' }}>
-                    {item.time}
-                  </Text>
-                </Box>
-                <Box className="flex-1">
-                  <Text className="font-medium" style={{ fontSize: '14px' }}>
-                    Giao {item.orderId}
-                  </Text>
-                  <Text className="text-gray-600" style={{ fontSize: '12px' }}>
-                    {item.customer}
-                  </Text>
-                </Box>
-                <Box>
-                  <Text style={{ fontSize: '16px' }}>📦</Text>
-                </Box>
-              </Box>
-            ))}
+                         {todayDeliveryOrders.map((order, index) => (
+               <Box key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                 <Box className="flex-1">
+                   <Text className="font-medium" style={{ fontSize: '14px' }}>
+                     {order.cr1bb_tensanpham || 'Sản phẩm không có tên'}
+                   </Text>
+                   <Text className="text-gray-600" style={{ fontSize: '12px' }}>
+                     {order.crdfd_nhanvienmuahang} • {order.crdfd_xac_nhan_so_luong_ncc || order.crdfd_soluong} {order.cr1bb_onvical}
+                   </Text>
+                 </Box>
+                 <Box>
+                   <Text style={{ fontSize: '16px' }}>📦</Text>
+                 </Box>
+               </Box>
+             ))}
           </Box>
         ) : (
           <Box className="text-center py-4">
