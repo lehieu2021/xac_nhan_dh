@@ -59,7 +59,7 @@ const Header = ({ title, subtitle, showBackButton = false, onBack, leftAction, r
               {title}
             </Text>
             {subtitle && (
-              <Text className="text-white/90 font-medium" style={{ fontSize: '14px', lineHeight: '1.4' }}>
+              <Text className="text-white/90 font-medium italic" style={{ fontSize: '14px', lineHeight: '1.4' }}>
                 {subtitle}
               </Text>
             )}
