@@ -9,8 +9,8 @@ interface ProfileProps {
   onLogout: () => void;
   onPasswordChange: (newPassword: string) => void;
   supplierId: string;
-  orders?: any[]; // Thêm prop orders để tính thống kê
-  draftOrders?: DraftOrder[]; // Dùng để tính tổng đơn giống trang Đơn hàng
+  orders?: any[];
+  draftOrders?: DraftOrder[];
 }
 
 const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], draftOrders = [] }: ProfileProps) => {
@@ -22,11 +22,9 @@ const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch supplier profile
         const supplierData = await apiService.getSupplierProfile(supplierId);
         setSupplier(supplierData);
         
-        // Fetch all draft orders for statistics
         if (supplierData?.cr44a_manhacungcap) {
           const allOrders = await apiService.getAllDraftOrders(supplierData.cr44a_manhacungcap);
           setAllDraftOrders(allOrders);
@@ -46,8 +44,6 @@ const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], 
   const handleChangePassword = async (newPassword: string, confirmPassword: string) => {
     try {
       await apiService.changePassword(supplierId, newPassword);
-      
-      // Update local state and call parent function
       onPasswordChange(newPassword);
       setIsChangePasswordModalOpen(false);
     } catch (error) {
@@ -59,7 +55,7 @@ const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], 
     setIsChangePasswordModalOpen(true);
   };
 
-  // Tính toán thống kê từ allDraftOrders (bao gồm tất cả trạng thái)
+  // Tính toán thống kê
   const orderStats = (() => {
     const groups: Record<string, DraftOrder[]> = {};
     allDraftOrders.forEach(item => {
@@ -71,17 +67,14 @@ const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], 
     
     const totalGroups = Object.keys(groups).length;
     
-    // Tính số nhóm đã xác nhận (có ít nhất 1 item có crdfd_ncc_nhan_don = 191920001)
     const confirmedGroups = Object.values(groups).filter(group => 
       group.some(item => item.crdfd_ncc_nhan_don === 191920001)
     ).length;
     
-    // Tính số nhóm từ chối (có ít nhất 1 item có crdfd_ncc_nhan_don = 191920002)
     const rejectedGroups = Object.values(groups).filter(group => 
       group.some(item => item.crdfd_ncc_nhan_don === 191920002)
     ).length;
     
-    // Tính số nhóm chưa xác nhận (tất cả items có crdfd_ncc_nhan_don = 191920000 hoặc null/undefined)
     const pendingGroups = Object.values(groups).filter(group => 
       group.every(item => item.crdfd_ncc_nhan_don === 191920000 || item.crdfd_ncc_nhan_don === null || item.crdfd_ncc_nhan_don === undefined)
     ).length;
@@ -104,136 +97,120 @@ const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], 
         onBack={onBack}
       />
 
-      {/* Spacing */}
-      <Box className="h-4"></Box>
-
       {/* Profile Info */}
-      <Box className="bg-white rounded-lg p-4 mb-4 mx-4 shadow-sm">
-        <Text className="text-gray-900 font-semibold mb-4" style={{ fontSize: '16px' }}>
+      <Box className="bg-white rounded-xl p-4 mb-4 mx-4 shadow-sm border border-gray-100">
+        <Text className="text-gray-900 font-medium mb-4 text-base">
           Thông tin công ty
         </Text>
-                 <Box className="space-y-3">
-           {isLoading ? (
-             <Box className="text-center py-4">
-               <Text className="text-gray-500">Đang tải thông tin...</Text>
-             </Box>
-           ) : supplier ? (
-             <>
-               <Box className="flex justify-between items-center">
-                 <Text className="text-gray-600" style={{ fontSize: '14px' }}>Tên nhà cung cấp:</Text>
-                 <Text className="text-gray-900 font-medium" style={{ fontSize: '14px' }}>
-                   {supplier.crdfd_suppliername || 'Chưa có thông tin'}
-                 </Text>
-               </Box>
-               <Box className="flex justify-between items-center">
-                 <Text className="text-gray-600" style={{ fontSize: '14px' }}>Mã NCC:</Text>
-                 <Text className="text-gray-900" style={{ fontSize: '14px' }}>
-                   {supplier.cr44a_manhacungcap || 'Chưa có thông tin'}
-                 </Text>
-               </Box>
-                               <Box className="flex justify-between items-center">
-                  <Text className="text-gray-600" style={{ fontSize: '14px' }}>Số điện thoại:</Text>
-                  <Text className="text-gray-900" style={{ fontSize: '14px' }}>
-                    {supplier.crdfd_supplierphone || 'Chưa có thông tin'}
-                  </Text>
-                </Box>
-               <Box className="flex flex-col">
-                 <Text className="text-gray-600" style={{ fontSize: '14px' }}>Tên pháp lý:</Text>
-                 <Text className="text-gray-900 mt-1 break-words" style={{ fontSize: '14px', whiteSpace: 'pre-wrap' }}>
-                   {supplier.crdfd_misaname || 'Chưa có thông tin'}
-                 </Text>
-               </Box>
-                <Box className="flex flex-col">
-                  <Text className="text-gray-600" style={{ fontSize: '14px' }}>Địa chỉ:</Text>
-                  <Text className="text-gray-900 mt-1 break-words" style={{ fontSize: '14px', whiteSpace: 'pre-wrap' }}>
-                    {supplier.crdfd_supplier_addr || 'Chưa có thông tin'}
-                  </Text>
-                </Box>
-             </>
-           ) : (
-             <Box className="text-center py-4">
-               <Text className="text-red-500">Không thể tải thông tin nhà cung cấp</Text>
-             </Box>
-           )}
-         </Box>
-
+        <Box className="space-y-3">
+          {isLoading ? (
+            <Box className="text-center py-4">
+              <Text className="text-gray-500">Đang tải thông tin...</Text>
+            </Box>
+          ) : supplier ? (
+            <>
+              <Box className="flex justify-between items-center">
+                <Text className="text-gray-600 text-sm">Tên nhà cung cấp:</Text>
+                <Text className="text-gray-900 font-medium text-sm">
+                  {supplier.crdfd_suppliername || 'Chưa có thông tin'}
+                </Text>
+              </Box>
+              <Box className="flex justify-between items-center">
+                <Text className="text-gray-600 text-sm">Mã NCC:</Text>
+                <Text className="text-gray-900 text-sm">
+                  {supplier.cr44a_manhacungcap || 'Chưa có thông tin'}
+                </Text>
+              </Box>
+              <Box className="flex justify-between items-center">
+                <Text className="text-gray-600 text-sm">Số điện thoại:</Text>
+                <Text className="text-gray-900 text-sm">
+                  {supplier.crdfd_supplierphone || 'Chưa có thông tin'}
+                </Text>
+              </Box>
+              <Box className="flex flex-col">
+                <Text className="text-gray-600 text-sm">Tên pháp lý:</Text>
+                <Text className="text-gray-900 mt-1 break-words text-sm">
+                  {supplier.crdfd_misaname || 'Chưa có thông tin'}
+                </Text>
+              </Box>
+              <Box className="flex flex-col">
+                <Text className="text-gray-600 text-sm">Địa chỉ:</Text>
+                <Text className="text-gray-900 mt-1 break-words text-sm">
+                  {supplier.crdfd_supplier_addr || 'Chưa có thông tin'}
+                </Text>
+              </Box>
+            </>
+          ) : (
+            <Box className="text-center py-4">
+              <Text className="text-red-500">Không thể tải thông tin nhà cung cấp</Text>
+            </Box>
+          )}
+        </Box>
       </Box>
 
-             {/* Statistics */}
-       <Box className="bg-white rounded-lg p-4 mb-4 mx-4 shadow-sm">
-         <Text className="text-gray-900 font-semibold mb-4" style={{ fontSize: '16px' }}>
-           Thống kê đơn hàng
-         </Text>
-         <Box className="grid grid-cols-2 gap-4">
-           <Box className="text-center p-3 bg-blue-50 rounded-lg">
-             <Text className="font-bold" style={{ color: '#04A1B3', fontSize: '20px' }}>
-               {orderStats.total}
-             </Text>
-             <Text className="text-gray-600" style={{ fontSize: '12px' }}>
-               Tổng đơn hàng
-             </Text>
-           </Box>
-           <Box className="text-center p-3 bg-green-50 rounded-lg">
-             <Text className="font-bold text-green-600" style={{ fontSize: '20px' }}>
-               {orderStats.confirmed}
-             </Text>
-             <Text className="text-gray-600" style={{ fontSize: '12px' }}>
-               Đã xác nhận
-             </Text>
-           </Box>
-           <Box className="text-center p-3 bg-yellow-50 rounded-lg">
-             <Text className="font-bold text-yellow-600" style={{ fontSize: '20px' }}>
-               {orderStats.pending}
-             </Text>
-             <Text className="text-gray-600" style={{ fontSize: '12px' }}>
-               Đang chờ
-             </Text>
-           </Box>
-           <Box className="text-center p-3 bg-red-50 rounded-lg">
-             <Text className="font-bold text-red-600" style={{ fontSize: '20px' }}>
-               {orderStats.rejected}
-             </Text>
-             <Text className="text-gray-600" style={{ fontSize: '12px' }}>
-               Từ chối
-             </Text>
-           </Box>
-         </Box>
-       </Box>
+      {/* Statistics */}
+      <Box className="bg-white rounded-xl p-4 mb-4 mx-4 shadow-sm border border-gray-100">
+        <Text className="text-gray-900 font-medium mb-4 text-base">
+          Thống kê đơn hàng
+        </Text>
+        <Box className="grid grid-cols-2 gap-3">
+          <Box className="text-center p-3 bg-blue-50 rounded-lg">
+            <Text className="font-semibold text-blue-600 text-lg">
+              {orderStats.total}
+            </Text>
+            <Text className="text-gray-500 text-xs">
+              Tổng đơn hàng
+            </Text>
+          </Box>
+          <Box className="text-center p-3 bg-green-50 rounded-lg">
+            <Text className="font-semibold text-green-600 text-lg">
+              {orderStats.confirmed}
+            </Text>
+            <Text className="text-gray-500 text-xs">
+              Đã xác nhận
+            </Text>
+          </Box>
+          <Box className="text-center p-3 bg-yellow-50 rounded-lg">
+            <Text className="font-semibold text-yellow-600 text-lg">
+              {orderStats.pending}
+            </Text>
+            <Text className="text-gray-500 text-xs">
+              Đang chờ
+            </Text>
+          </Box>
+          <Box className="text-center p-3 bg-red-50 rounded-lg">
+            <Text className="font-semibold text-red-600 text-lg">
+              {orderStats.rejected}
+            </Text>
+            <Text className="text-gray-500 text-xs">
+              Từ chối
+            </Text>
+          </Box>
+        </Box>
+      </Box>
 
-      {/* Action Buttons - Đổi mật khẩu và Đăng xuất */}
+      {/* Action Buttons */}
       <Box className="mx-4 mb-4 space-y-3">
         <Button
-          variant="secondary"
+          variant="tertiary"
           fullWidth
           onClick={handleOpenChangePasswordModal}
-          style={{
-            backgroundColor: '#EBF8FF',
-            borderColor: '#04A1B3',
-            color: '#04A1B3',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: '500'
-          }}
+          className="h-12 rounded-lg text-white font-medium"
+          style={{ backgroundColor: '#04A1B3', borderColor: '#04A1B3', borderWidth: 2, borderStyle: 'solid' }}
         >
           🔐 Đổi mật khẩu
         </Button>
         
         <Button
-          variant="secondary"
+          variant="tertiary"
           fullWidth
           onClick={onLogout}
-          style={{
-            backgroundColor: '#F3F4F6',
-            borderColor: '#D1D5DB',
-            color: '#374151',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: '500'
-          }}
-                 >
-           Đăng xuất
-         </Button>
-       </Box>
+          className="h-12 rounded-lg font-medium"
+          style={{ backgroundColor: '#ffffff', color: '#04A1B3', borderColor: '#04A1B3', borderWidth: 2, borderStyle: 'solid' }}
+        >
+          Đăng xuất
+        </Button>
+      </Box>
 
       {/* Change Password Modal */}
       <ChangePasswordModal

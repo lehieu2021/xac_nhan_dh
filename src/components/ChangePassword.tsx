@@ -41,7 +41,6 @@ const ChangePasswordModal = ({ isOpen, onClose, onSubmit }: ChangePasswordModalP
     
     try {
       await onSubmit(newPassword, confirmPassword);
-      // Reset form on success
       setNewPassword("");
       setConfirmPassword("");
       setErrors({});
@@ -63,21 +62,15 @@ const ChangePasswordModal = ({ isOpen, onClose, onSubmit }: ChangePasswordModalP
 
   return (
     <Box className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <Box className="bg-white rounded-lg p-6 mx-4 w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <Box className="bg-white rounded-xl p-6 mx-4 w-full max-w-sm max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <Box className="flex justify-between items-center mb-6">
-          <Text className="text-xl font-semibold text-gray-900">Đổi mật khẩu</Text>
+          <Text className="text-lg font-medium text-gray-900">Đổi mật khẩu</Text>
           <Button
             variant="secondary"
             size="small"
             onClick={handleClose}
-            style={{
-              backgroundColor: '#F3F4F6',
-              borderColor: '#D1D5DB',
-              color: '#6B7280',
-              padding: '8px',
-              minWidth: 'auto'
-            }}
+            className="bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100 p-2"
           >
             ✕
           </Button>
@@ -90,17 +83,13 @@ const ChangePasswordModal = ({ isOpen, onClose, onSubmit }: ChangePasswordModalP
 
           {/* New Password */}
           <Box>
-            <Text className="text-gray-700 mb-2 block">Mật khẩu mới</Text>
+            <Text className="text-gray-700 mb-2 block text-sm font-medium">Mật khẩu mới</Text>
             <Input
-              placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
+              placeholder="Nhập mật khẩu mới"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               type="password"
-              style={{
-                backgroundColor: '#F9FAFB',
-                borderColor: errors.newPassword ? '#EF4444' : '#E5E7EB',
-                color: '#374151'
-              }}
+              className={errors.newPassword ? "border-red-300" : ""}
             />
             {errors.newPassword && (
               <Text className="text-red-500 text-xs mt-1">{errors.newPassword}</Text>
@@ -109,17 +98,13 @@ const ChangePasswordModal = ({ isOpen, onClose, onSubmit }: ChangePasswordModalP
 
           {/* Confirm New Password */}
           <Box>
-            <Text className="text-gray-700 mb-2 block">Xác nhận mật khẩu mới</Text>
+            <Text className="text-gray-700 mb-2 block text-sm font-medium">Xác nhận mật khẩu mới</Text>
             <Input
               placeholder="Nhập lại mật khẩu mới"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               type="password"
-              style={{
-                backgroundColor: '#F9FAFB',
-                borderColor: errors.confirmPassword ? '#EF4444' : '#E5E7EB',
-                color: '#374151'
-              }}
+              className={errors.confirmPassword ? "border-red-300" : ""}
             />
             {errors.confirmPassword && (
               <Text className="text-red-500 text-xs mt-1">{errors.confirmPassword}</Text>
@@ -127,12 +112,11 @@ const ChangePasswordModal = ({ isOpen, onClose, onSubmit }: ChangePasswordModalP
           </Box>
 
           {/* Password Requirements */}
-          <Box className="bg-blue-50 p-3 rounded-lg">
+          <Box className="bg-blue-50 p-3 rounded-lg border border-blue-100">
             <Text className="text-blue-800 text-sm font-medium mb-2">Yêu cầu mật khẩu:</Text>
             <Box className="space-y-1">
               <Text className="text-blue-700 text-xs">• Tối thiểu 6 ký tự</Text>
-              <Text className="text-blue-700 text-xs">• Không được trùng với mật khẩu hiện tại</Text>
-              <Text className="text-blue-700 text-xs">• Nên sử dụng kết hợp chữ hoa, chữ thường, số và ký tự đặc biệt</Text>
+              <Text className="text-blue-700 text-xs">• Nên sử dụng kết hợp chữ hoa, chữ thường, số</Text>
             </Box>
           </Box>
 
@@ -142,14 +126,7 @@ const ChangePasswordModal = ({ isOpen, onClose, onSubmit }: ChangePasswordModalP
               variant="secondary"
               fullWidth
               onClick={handleClose}
-              style={{
-                backgroundColor: '#F3F4F6',
-                borderColor: '#D1D5DB',
-                color: '#374151',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: '500'
-              }}
+              className="bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
             >
               Hủy
             </Button>
@@ -158,14 +135,6 @@ const ChangePasswordModal = ({ isOpen, onClose, onSubmit }: ChangePasswordModalP
               fullWidth
               onClick={handleSubmit}
               disabled={isLoading}
-              style={{
-                backgroundColor: '#04A1B3',
-                borderColor: '#04A1B3',
-                color: 'white',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: '500'
-              }}
             >
               {isLoading ? "Đang xử lý..." : "Đổi mật khẩu"}
             </Button>

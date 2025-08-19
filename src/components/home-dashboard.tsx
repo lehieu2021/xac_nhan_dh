@@ -19,7 +19,7 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
     day: 'numeric' 
   });
 
-  // Tính toán đơn hàng giao hôm nay (có ngày xác nhận giao = hôm nay)
+  // Tính toán đơn hàng giao hôm nay
   const todayDeliveryOrders = allDraftOrders.filter(order => {
     if (!order.crdfd_xac_nhan_ngay_giao_ncc) return false;
     
@@ -27,26 +27,21 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
       const deliveryDate = new Date(order.crdfd_xac_nhan_ngay_giao_ncc);
       const today = new Date();
       
-      // So sánh ngày (bỏ qua thời gian) - cách 1
       const isToday = deliveryDate.getFullYear() === today.getFullYear() &&
                      deliveryDate.getMonth() === today.getMonth() &&
                      deliveryDate.getDate() === today.getDate();
       
-      // So sánh ngày - cách 2 (fallback)
-      const todayString = today.toISOString().split('T')[0]; // YYYY-MM-DD
+      const todayString = today.toISOString().split('T')[0];
       const deliveryString = deliveryDate.toISOString().split('T')[0];
       const isTodayAlt = todayString === deliveryString;
       
-      const finalResult = isToday || isTodayAlt;
-      
-      return finalResult;
+      return isToday || isTodayAlt;
     } catch (error) {
-      console.error('Error parsing delivery date:', error, order.crdfd_xac_nhan_ngay_giao_ncc);
       return false;
     }
   });
 
-  // Tính toán đơn hàng sắp đến hạn giao (trong 3 ngày tới)
+  // Tính toán đơn hàng sắp đến hạn giao
   const upcomingDeliveryOrders = allDraftOrders.filter(order => {
     if (!order.crdfd_xac_nhan_ngay_giao_ncc) return false;
     
@@ -56,7 +51,6 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
       const threeDaysFromNow = new Date(today);
       threeDaysFromNow.setDate(today.getDate() + 3);
       
-      // Chỉ lấy đơn hàng đã xác nhận (crdfd_ncc_nhan_don = 191920001)
       return order.crdfd_ncc_nhan_don === 191920001 &&
              deliveryDate > today && 
              deliveryDate <= threeDaysFromNow;
@@ -64,32 +58,6 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
       return false;
     }
   });
-
-  // Format thời gian cho lịch giao hàng
-  const formatDeliveryTime = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      // Nếu chỉ có ngày (không có thời gian), hiển thị "Hôm nay"
-      if (date.getHours() === 0 && date.getMinutes() === 0) {
-        return "Hôm nay";
-      }
-      return date.toLocaleTimeString('vi-VN', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
-    } catch (error) {
-      return "Hôm nay";
-    }
-  };
-
-  // Format ngày cho hiển thị
-  const formatDeliveryDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('vi-VN', { 
-      day: '2-digit', 
-      month: '2-digit' 
-    });
-  };
 
   return (
     <Box className="bg-gray-50 min-h-screen pb-20">
@@ -103,78 +71,90 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
         }}
       />
 
-      {/* Spacing */}
-      <Box className="h-4"></Box>
-
       {/* Greeting */}
-      <Box className="bg-white rounded-lg p-4 mb-4 mx-4 shadow-sm">
-        <Text className="text-gray-900 font-semibold mb-2" style={{ fontSize: '18px' }}>
+      <Box className="bg-white rounded-xl p-4 mb-4 mx-4 shadow-sm border border-gray-100">
+        <Text className="text-gray-900 font-medium mb-1 text-base">
           👋 Chào mừng, {supplierName || 'Nhà cung cấp'}!
         </Text>
-        <Text className="text-gray-600" style={{ fontSize: '14px' }}>
+        <Text className="text-gray-500 text-sm">
           {currentDate}
         </Text>
       </Box>
 
-      {/* Alerts */}
-      <Box className="bg-white rounded-lg p-4 mb-4 mx-4 shadow-sm">
-        <Text className="text-gray-900 font-semibold mb-3" style={{ fontSize: '16px' }}>
-          🔔 Thông báo quan trọng
-        </Text>
-        <Box className="space-y-3">
-          <Box className="flex items-start space-x-3 p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
-            <Text style={{ fontSize: '16px' }}>🔴</Text>
-            <Box className="flex-1">
-              <Text className="text-red-800 font-medium" style={{ fontSize: '14px' }}>
-                Khẩn cấp: {urgentCount} đơn hàng đang chờ xác nhận
-              </Text>
-              <Text className="text-red-600" style={{ fontSize: '12px' }}>
-                {urgentCount > 0 ? 'Vui lòng kiểm tra và phản hồi sớm' : 'Chưa có đơn gấp'}
-              </Text>
-            </Box>
+      {/* Quick Stats */}
+      <Box className="px-4 mb-4">
+        <Box className="grid grid-cols-2 gap-3">
+          <Box className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+            <Text className="text-2xl mb-1">📦</Text>
+            <Text className="text-lg font-semibold text-gray-900">{urgentCount}</Text>
+            <Text className="text-xs text-gray-500">Đơn chờ xác nhận</Text>
           </Box>
-          
-          <Box className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
-            <Text style={{ fontSize: '16px' }}>🟡</Text>
-            <Box className="flex-1">
-              <Text className="text-yellow-800 font-medium" style={{ fontSize: '14px' }}>
-                Nhắc nhở: {upcomingDeliveryOrders.length} đơn hàng sắp đến hạn giao
-              </Text>
-              <Text className="text-yellow-600" style={{ fontSize: '12px' }}>
-                {upcomingDeliveryOrders.length > 0 ? 'Vui lòng chuẩn bị giao hàng sớm' : 'Chưa có đơn hàng sắp đến hạn'}
-              </Text>
-            </Box>
+          <Box className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+            <Text className="text-2xl mb-1">🚚</Text>
+            <Text className="text-lg font-semibold text-gray-900">{todayDeliveryOrders.length}</Text>
+            <Text className="text-xs text-gray-500">Giao hôm nay</Text>
           </Box>
         </Box>
       </Box>
 
+      {/* Alerts */}
+      {(urgentCount > 0 || upcomingDeliveryOrders.length > 0) && (
+        <Box className="bg-white rounded-xl p-4 mb-4 mx-4 shadow-sm border border-gray-100">
+          <Text className="text-gray-900 font-medium mb-3 text-base">
+            🔔 Thông báo
+          </Text>
+          <Box className="space-y-2">
+            {urgentCount > 0 && (
+              <Box className="flex items-center space-x-2 p-2 bg-red-50 rounded-lg">
+                <Text className="text-red-500">🔴</Text>
+                <Text className="text-red-700 text-sm">
+                  {urgentCount} đơn hàng cần xác nhận gấp
+                </Text>
+              </Box>
+            )}
+            
+            {upcomingDeliveryOrders.length > 0 && (
+              <Box className="flex items-center space-x-2 p-2 bg-yellow-50 rounded-lg">
+                <Text className="text-yellow-500">🟡</Text>
+                <Text className="text-yellow-700 text-sm">
+                  {upcomingDeliveryOrders.length} đơn hàng sắp đến hạn giao
+                </Text>
+              </Box>
+            )}
+          </Box>
+        </Box>
+      )}
+
       {/* Today Schedule */}
-      <Box className="bg-white rounded-lg p-4 mb-4 mx-4 shadow-sm">
-        <Text className="text-gray-900 font-semibold mb-3" style={{ fontSize: '16px' }}>
+      <Box className="bg-white rounded-xl p-4 mb-4 mx-4 shadow-sm border border-gray-100">
+        <Text className="text-gray-900 font-medium mb-3 text-base">
           📅 Lịch giao hàng hôm nay
         </Text>
         
         {todayDeliveryOrders.length > 0 ? (
-          <Box className="space-y-3">
-            {todayDeliveryOrders.map((order, index) => (
-              <Box key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+          <Box className="space-y-2">
+            {todayDeliveryOrders.slice(0, 3).map((order, index) => (
+              <Box key={index} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-lg">
                 <Box className="flex-1">
-                  <Text className="font-medium" style={{ fontSize: '14px' }}>
-                    {order.cr1bb_tensanpham || 'Sản phẩm không có tên'}
+                  <Text className="font-medium text-sm text-gray-900">
+                    {order.cr1bb_tensanpham || 'Sản phẩm'}
                   </Text>
-                  <Text className="text-gray-600" style={{ fontSize: '12px' }}>
+                  <Text className="text-gray-500 text-xs">
                     {order.crdfd_nhanvienmuahang} • {order.crdfd_xac_nhan_so_luong_ncc || order.crdfd_soluong} {order.cr1bb_onvical}
                   </Text>
                 </Box>
-                <Box>
-                  <Text style={{ fontSize: '16px' }}>📦</Text>
-                </Box>
+                <Text className="text-gray-400">📦</Text>
               </Box>
             ))}
+            {todayDeliveryOrders.length > 3 && (
+              <Text className="text-center text-gray-500 text-xs pt-1">
+                +{todayDeliveryOrders.length - 3} đơn hàng khác
+              </Text>
+            )}
           </Box>
         ) : (
           <Box className="text-center py-4">
-            <Text className="text-gray-500" style={{ fontSize: '14px' }}>
+            <Text className="text-gray-400 text-sm">
               Không có lịch giao hàng hôm nay
             </Text>
           </Box>
@@ -185,24 +165,20 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
       <Box className="px-4 mb-4">
         <Button 
           onClick={onViewAllOrders}
-          variant="primary"
-          className="w-full"
-          style={{
-            backgroundColor: '#04A1B3',
-            borderColor: '#04A1B3',
-            color: 'white'
-          }}
+          variant="tertiary"
+          className="w-full h-12 rounded-lg font-medium"
+          style={{ backgroundColor: '#ffffff', color: '#04A1B3', borderColor: '#04A1B3', borderWidth: 2, borderStyle: 'solid' }}
         >
-          📦 Xem tất cả đơn hàng
+          Xem tất cả đơn hàng
         </Button>
       </Box>
 
       {/* Tips */}
-      <Box className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4 mb-4 mx-4 border border-blue-200">
-        <Text className="text-blue-800 font-semibold mb-2" style={{ fontSize: '14px' }}>
+      <Box className="bg-blue-50 rounded-xl p-4 mb-4 mx-4 border border-blue-100">
+        <Text className="text-blue-800 font-medium mb-1 text-sm">
           💡 Mẹo hôm nay
         </Text>
-        <Text className="text-blue-700" style={{ fontSize: '13px', fontStyle: 'italic' }}>
+        <Text className="text-blue-700 text-xs leading-relaxed">
           Xác nhận đơn hàng trong 30 phút để tăng độ tin cậy và cải thiện xếp hạng nhà cung cấp.
         </Text>
       </Box>

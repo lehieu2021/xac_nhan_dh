@@ -13,7 +13,7 @@ const Toast = ({ message, type, isVisible, onClose }: ToastProps) => {
     if (isVisible) {
       const timer = setTimeout(() => {
         onClose();
-      }, 3000); // Tự động đóng sau 3 giây
+      }, 3000);
 
       return () => clearTimeout(timer);
     }
@@ -25,39 +25,51 @@ const Toast = ({ message, type, isVisible, onClose }: ToastProps) => {
     switch (type) {
       case 'success':
         return {
-          backgroundColor: '#10B981',
-          borderColor: '#059669',
-          color: 'white'
+          backgroundColor: '#F0FDF4',
+          borderColor: '#BBF7D0',
+          textColor: '#166534',
+          icon: '✅'
         };
       case 'error':
         return {
-          backgroundColor: '#EF4444',
-          borderColor: '#DC2626',
-          color: 'white'
+          backgroundColor: '#FEF2F2',
+          borderColor: '#FECACA',
+          textColor: '#DC2626',
+          icon: '❌'
         };
       case 'info':
         return {
-          backgroundColor: '#04A1B3',
-          borderColor: '#04A1B3',
-          color: 'white'
+          backgroundColor: '#F0F9FF',
+          borderColor: '#BAE6FD',
+          textColor: '#0369A1',
+          icon: 'ℹ️'
         };
       default:
         return {
-          backgroundColor: '#6B7280',
-          borderColor: '#4B5563',
-          color: 'white'
+          backgroundColor: '#F9FAFB',
+          borderColor: '#E5E7EB',
+          textColor: '#374151',
+          icon: '💡'
         };
     }
   };
 
+  const style = getToastStyle();
+
   return (
     <Box
-      className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 rounded-lg shadow-lg px-4 py-3 min-w-64 max-w-sm"
-      style={getToastStyle()}
+      className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 rounded-xl shadow-lg px-4 py-3 min-w-64 max-w-sm border"
+      style={{
+        backgroundColor: style.backgroundColor,
+        borderColor: style.borderColor
+      }}
     >
-      <Text className="text-sm font-medium text-center">
-        {message}
-      </Text>
+      <Box className="flex items-center space-x-2">
+        <Text className="text-sm">{style.icon}</Text>
+        <Text className="text-sm font-medium" style={{ color: style.textColor }}>
+          {message}
+        </Text>
+      </Box>
     </Box>
   );
 };
