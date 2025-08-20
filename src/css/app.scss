@@ -66,183 +66,15 @@ body {
   background-color: var(--color-gray-50);
 }
 
-// Simple Card Design
-.simple-card {
-  background: var(--color-white);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-gray-100);
-  transition: all var(--transition-normal);
-  
-  &:hover {
-    box-shadow: var(--shadow-md);
-  }
-}
+//
 
-// Enhanced Input System
-.simple-input {
-  background: var(--color-white);
-  border: 1px solid var(--color-gray-200);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md);
-  font-size: 16px;
-  font-family: var(--font-family-primary);
-  color: var(--color-gray-900);
-  transition: all var(--transition-fast);
-  width: 100%;
-  
-  &::placeholder {
-    color: var(--color-gray-400);
-  }
-  
-  &:hover {
-    border-color: var(--color-gray-300);
-  }
-  
-  &:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  }
-  
-  &:disabled {
-    background: var(--color-gray-100);
-    color: var(--color-gray-500);
-    cursor: not-allowed;
-  }
-}
+//
 
-// Order Detail Specific Styles
-.order-detail-input {
-  @extend .simple-input;
-  
-  &.quantity-input {
-    border-color: var(--color-info);
-    
-    &:focus {
-      border-color: var(--color-info);
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-  }
-  
-  &.date-input {
-    border-color: var(--color-info);
-    
-    &:focus {
-      border-color: var(--color-info);
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-  }
-  
-  &.notes-input {
-    border-color: var(--color-gray-300);
-    min-height: 100px;
-    resize: vertical;
-    
-    &:focus {
-      border-color: var(--color-primary);
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-  }
-}
+//
 
-// Simple Button System
-.simple-button {
-  border-radius: var(--radius-md);
-  font-weight: 500;
-  font-size: 14px;
-  padding: var(--spacing-md) var(--spacing-lg);
-  border: none;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-  
-  &:hover {
-    transform: translateY(-1px);
-  }
-  
-  &:active {
-    transform: translateY(0);
-  }
-  
-  &.primary {
-    background: var(--color-primary);
-    color: var(--color-white);
-    
-    &:hover {
-      background: var(--color-primary-dark);
-    }
-  }
-  
-  &.secondary {
-    background: var(--color-gray-100);
-    color: var(--color-gray-700);
-    
-    &:hover {
-      background: var(--color-gray-200);
-    }
-  }
-  
-  &.danger {
-    background: var(--color-error);
-    color: var(--color-white);
-    
-    &:hover {
-      background: #DC2626;
-    }
-  }
-  
-  &.success {
-    background: var(--color-success);
-    color: var(--color-white);
-    
-    &:hover {
-      background: #059669;
-    }
-  }
-  
-  &.outline {
-    background: transparent;
-    border: 1px solid var(--color-gray-300);
-    color: var(--color-gray-700);
-    
-    &:hover {
-      border-color: var(--color-gray-400);
-      background: var(--color-gray-50);
-    }
-  }
-}
+//
 
-// Status Badges
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius-xl);
-  font-size: 12px;
-  font-weight: 500;
-  
-  &.out-of-stock {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--color-error);
-    border: 1px solid rgba(239, 68, 68, 0.2);
-  }
-  
-  &.pending {
-    background: rgba(245, 158, 11, 0.1);
-    color: var(--color-warning);
-    border: 1px solid rgba(245, 158, 11, 0.2);
-  }
-  
-  &.confirmed {
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--color-success);
-    border: 1px solid rgba(16, 185, 129, 0.2);
-  }
-}
+//
 
 // Layout Components
 .page-container {
@@ -277,9 +109,7 @@ body {
   animation: slideUp var(--transition-normal) ease-out;
 }
 
-.scale-in {
-  animation: scaleIn var(--transition-normal) ease-out;
-}
+//
 
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -297,16 +127,7 @@ body {
   }
 }
 
-@keyframes scaleIn {
-  from { 
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to { 
-    opacity: 1;
-    transform: scale(1);
-  }
-}
+//
 
 // Responsive Design
 @media (max-width: 480px) {
@@ -321,20 +142,9 @@ body {
   }
 }
 
-// Legacy Support
-.page {
-  padding: 16px 16px 96px 16px;
-}
+//
 
-// Custom styles for order management
-.order-card {
-  transition: all 0.2s ease-in-out;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-}
+//
 
 :root {
   --zmp-primary-color: #3B82F6;

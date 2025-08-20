@@ -1,19 +1,15 @@
 import { useState, useEffect } from "react";
-import { Box, Text, Page, Button, Icon, Input } from "zmp-ui";
-import OrderCard from "@/components/order-card";
+import { Box } from "zmp-ui";
 import DraftOrderDetail from "@/components/draft-order-detail";
-import Header from "@/components/header";
 import BottomNavigation from "@/components/bottom-navigation";
 import Profile from "@/components/profile";
 import HomeDashboard from "@/components/home-dashboard";
 import OrdersPage from "@/components/orders-page";
 import Login from "@/components/Login";
-import { apiService, Order, Supplier, DraftOrder } from "../services/api";
+import { apiService, Supplier, DraftOrder } from "../services/api";
 
 function HomePage() {
   const [selectedOrder, setSelectedOrder] = useState<DraftOrder | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
   const [currentView, setCurrentView] = useState("home");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState<Supplier | null>(null);
@@ -66,30 +62,7 @@ function HomePage() {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.cr1bb_tensanpham.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.crdfd_nhanvienmuahang.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (activeTab === "all") return matchesSearch;
-    if (activeTab === "pending") return order.crdfd_ncc_nhan_don === 191920000 && matchesSearch;
-    if (activeTab === "confirmed") return order.crdfd_ncc_nhan_don === 191920001 && matchesSearch;
-    if (activeTab === "rejected") return order.crdfd_ncc_nhan_don === 191920002 && matchesSearch;
-    
-    return matchesSearch;
-  });
-
-  const handleViewDetails = async (orderId: string) => {
-    try {
-      // Tìm order trong danh sách hiện tại
-      const order = orders.find(o => o.crdfd_kehoachhangve_draftid === orderId);
-      if (order) {
-        setSelectedOrder(order);
-      }
-    } catch (error) {
-      console.error('Error finding order:', error);
-      alert('Không thể tải chi tiết đơn hàng');
-    }
-  };
+  
 
   const handleConfirmOrder = async (orderIds: string[], updatedItems: { id: string; quantity: number; deliveryDate: string }[], notes: string) => {
     try {
