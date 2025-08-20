@@ -12,42 +12,9 @@ interface DraftOrderDetailProps {
 }
 
 const DraftOrderDetail = ({ orders, onBack, onConfirm, onReject }: DraftOrderDetailProps) => {
-  // Initialize quantities for all items in the group
-  const initialQuantities = orders.reduce((acc, item) => {
-    acc[item.crdfd_kehoachhangve_draftid] = item.crdfd_soluong;
-    return acc;
-  }, {} as { [key: string]: number });
-  const [quantities, setQuantities] = useState<{ [key: string]: number }>(initialQuantities);
   const [notes, setNotes] = useState("");
-  const initialDeliveryDatesIso = orders.reduce((acc, item) => {
-    const d = new Date(item.cr1bb_ngaygiaodukien);
-    const tzAdjusted = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-    acc[item.crdfd_kehoachhangve_draftid] = tzAdjusted.toISOString().slice(0, 10);
-    return acc;
-  }, {} as { [key: string]: string });
-  
-  const toVNDate = (iso: string) => {
-    const [yyyy, mm, dd] = iso.split("-");
-    return `${dd}/${mm}/${yyyy}`;
-  };
-  
-  const fromVNDate = (vn: string): string | null => {
-    const m = vn.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (!m) return null;
-    const dd = m[1].padStart(2, '0');
-    const mm = m[2].padStart(2, '0');
-    const yyyy = m[3];
-    return `${yyyy}-${mm}-${dd}`;
-  };
-  
-  const initialDisplayDates = Object.entries(initialDeliveryDatesIso).reduce((acc, [k, v]) => {
-    acc[k] = toVNDate(v);
-    return acc;
-  }, {} as { [key: string]: string });
-  
-  const [deliveryDatesIso, setDeliveryDatesIso] = useState<{ [key: string]: string }>(initialDeliveryDatesIso);
-  const [displayDates, setDisplayDates] = useState<{ [key: string]: string }>(initialDisplayDates);
   const [isLoading, setIsLoading] = useState(false);
+  const [deliveryDates, setDeliveryDates] = useState<{[key: string]: Date}>({});
 
   const formatDate = (dateString: string) => {
     try {
@@ -67,6 +34,15 @@ const DraftOrderDetail = ({ orders, onBack, onConfirm, onReject }: DraftOrderDet
     }).format(amount);
   };
 
+  const formatDateVN = (date?: Date) => {
+    try {
+      if (!date) return '';
+      return date.toLocaleDateString('vi-VN');
+    } catch {
+      return '';
+    }
+  };
+
   // Helper function để hiển thị trạng thái NCC nhận đơn
   const getOrderStatusDisplay = (status?: number) => {
     switch (status) {
@@ -81,46 +57,16 @@ const DraftOrderDetail = ({ orders, onBack, onConfirm, onReject }: DraftOrderDet
     }
   };
 
-  const handleQuantityChange = (orderId: string, newQuantity: number) => {
-    setQuantities(prev => ({
-      ...prev,
-      [orderId]: Math.max(0, newQuantity)
-    }));
-  };
-
-  const handleOutOfStock = (orderId: string) => {
-    setQuantities(prev => ({
-      ...prev,
-      [orderId]: 0
-    }));
-  };
-
-  // Hàm parse ngày từ format dd/mm/yyyy sang Date object một cách an toàn
-  const parseDisplayDate = (dateString: string): Date => {
-    try {
-      const [day, month, year] = dateString.split('/').map(Number);
-      if (day && month && year) {
-        return new Date(year, month - 1, day);
-      }
-    } catch (error) {
-      console.warn('Invalid date format:', dateString);
-    }
-    return new Date(); // Fallback to current date
-  };
-
   const handleDateChange = (orderId: string, date: Date) => {
-    // Convert Date to DD/MM/YYYY format for display
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    const displayDate = `${day}/${month}/${year}`;
-    
-    setDisplayDates(prev => ({ ...prev, [orderId]: displayDate }));
-    
-    // Convert to ISO format for backend
-    const isoDate = date.toISOString();
-    setDeliveryDatesIso(prev => ({ ...prev, [orderId]: isoDate }));
+    setDeliveryDates(prev => ({
+      ...prev,
+      [orderId]: date
+    }));
   };
+
+
+
+
 
   const handleConfirm = async () => {
     try {
@@ -128,26 +74,23 @@ const DraftOrderDetail = ({ orders, onBack, onConfirm, onReject }: DraftOrderDet
       
       // Cập nhật trạng thái crdfd_ncc_nhan_don cho tất cả đơn hàng trong nhóm
       for (const order of orders) {
-        const confirmedQty = quantities[order.crdfd_kehoachhangve_draftid];
-        const originalQty = order.crdfd_soluong;
-        const deliveryDate = deliveryDatesIso[order.crdfd_kehoachhangve_draftid];
-        
-
-        
+        const deliveryDate = deliveryDates[order.crdfd_kehoachhangve_draftid];
         await apiService.updateDraftOrderStatus(
           order.crdfd_kehoachhangve_draftid, 
           191920001, // Đã xác nhận
-          confirmedQty,
-          originalQty,
+          order.crdfd_soluong,
+          order.crdfd_soluong,
           notes, // Truyền ghi chú
-          deliveryDate // Truyền ngày giao đã chọn (có thể undefined)
+          deliveryDate ? deliveryDate.toISOString() : undefined // Truyền ngày giao đã chọn
         );
       }
       
       const updatedItems = orders.map(item => ({
         id: item.crdfd_kehoachhangve_draftid,
-        quantity: quantities[item.crdfd_kehoachhangve_draftid],
-        deliveryDate: deliveryDatesIso[item.crdfd_kehoachhangve_draftid]
+        quantity: item.crdfd_soluong,
+        deliveryDate: deliveryDates[item.crdfd_kehoachhangve_draftid] ? 
+          deliveryDates[item.crdfd_kehoachhangve_draftid].toISOString() : 
+          new Date().toISOString()
       }));
       const orderIds = orders.map(item => item.crdfd_kehoachhangve_draftid);
       onConfirm(orderIds, updatedItems, notes);
@@ -250,8 +193,8 @@ const DraftOrderDetail = ({ orders, onBack, onConfirm, onReject }: DraftOrderDet
               </Text>
             </Box>
             
-                         {orders.map((item, index) => (
-               <Box key={item.crdfd_kehoachhangve_draftid} className={`pb-4 p-3 border border-gray-200 rounded-xl bg-white shadow-sm mb-4`} style={{ borderLeft: '4px solid #04A1B3' }}>
+            {orders.map((item, index) => (
+              <Box key={item.crdfd_kehoachhangve_draftid} className={`pb-4 p-3 border border-gray-200 rounded-xl bg-white shadow-sm mb-4`} style={{ borderLeft: '4px solid #04A1B3' }}>
                 {/* Product Header */}
                 <Box className="mb-3">
                   <Text className="text-gray-900 font-semibold mb-2" style={{ fontSize: '15px' }}>
@@ -265,62 +208,49 @@ const DraftOrderDetail = ({ orders, onBack, onConfirm, onReject }: DraftOrderDet
                   </Box>
                 </Box>
 
-                                 {/* Quantity Section */}
-                 <Box className="mb-3">
-                   <Text className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-2 block">
-                     Số lượng ({item.cr1bb_onvical})
-                   </Text>
-                                                                               <Box className="flex items-center gap-3">
-                                                                                                                                                                                                                                                                                                                                                                                       <Input
-                             type="number"
-                             value={quantities[item.crdfd_kehoachhangve_draftid]}
-                             onChange={(e) => handleQuantityChange(item.crdfd_kehoachhangve_draftid, parseInt(e.target.value))}
-                                                         className="flex-1"
-                             size="medium"
-                             min={0}
-                             disabled={quantities[item.crdfd_kehoachhangve_draftid] === 0}
-                           />
-                                               <Button
-                          size="small"
-                          variant="secondary"
-                          onClick={() => handleOutOfStock(item.crdfd_kehoachhangve_draftid)}
-                          style={{ 
-                            height: '44px', 
-                            padding: '0 12px',
-                            backgroundColor: '#04A1B3',
-                            borderColor: '#04A1B3',
-                            color: '#FFFFFF'
-                          }}
-                        >
-                          Hết hàng
-                        </Button>
-                     </Box>
-                 </Box>
-
-                                                     {/* Delivery Date Section */}
-                  <Box className="mb-3">
-                    <Text className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-2 block">
-                      Ngày giao
-                    </Text>
-                    <Box style={{ backgroundColor: '#FFFFFF', borderRadius: '8px' }}>
-                      <DatePicker
-                        value={displayDates[item.crdfd_kehoachhangve_draftid] ? parseDisplayDate(displayDates[item.crdfd_kehoachhangve_draftid]) : new Date()}
-                        onChange={(date) => handleDateChange(item.crdfd_kehoachhangve_draftid, date)}
-                        placeholder="Chọn ngày giao hàng"
-                      />
-                    </Box>
-                                     </Box>
-
-                   {/* Item Total Amount */}
-                   <Box className="flex justify-between items-center py-2 border-t border-gray-100 mt-3">
-                                           <Text className="text-gray-500 text-xs font-medium uppercase tracking-wide">Thành tiền:</Text>
-                                           <Text className="font-semibold" style={{ color: '#059669', fontSize: '14px' }}>
-                        {formatCurrency(quantities[item.crdfd_kehoachhangve_draftid] * item.crdfd_gia)}
-                      </Text>
-                   </Box>
-
+                {/* Quantity Section */}
+                <Box className="mb-3">
+                  <Text className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-2 block">
+                    Số lượng ({item.cr1bb_onvical})
+                  </Text>
+                  <Box className="flex items-center gap-3">
+                    <Input
+                      type="number"
+                      defaultValue={item.crdfd_soluong}
+                      className="flex-1"
+                      size="medium"
+                      min={0}
+                    />
+                    <Button
+                      size="small"
+                      variant="secondary"
+                      style={{ 
+                        height: '44px', 
+                        padding: '0 12px',
+                        backgroundColor: '#04A1B3',
+                        borderColor: '#04A1B3',
+                        color: '#FFFFFF'
+                      }}
+                    >
+                      Hết hàng
+                    </Button>
+                  </Box>
                 </Box>
-             ))}
+
+                {/* Delivery Date Section */}
+                <Box className="mb-3">
+                  <Text className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-2 block">
+                    Ngày giao
+                  </Text>
+                  <DatePicker
+                    value={deliveryDates[item.crdfd_kehoachhangve_draftid] || new Date()}
+                    onChange={(date) => handleDateChange(item.crdfd_kehoachhangve_draftid, date)}
+                    placeholder="dd/MM/yyyy"
+                  />
+                </Box>
+
+              </Box>
+            ))}
           </Box>
         </Box>
 
@@ -330,24 +260,12 @@ const DraftOrderDetail = ({ orders, onBack, onConfirm, onReject }: DraftOrderDet
             <Text className="text-heading mb-2" style={{ fontSize: '16px', fontWeight: '600', color: '#111827' }}>
               Ghi chú
             </Text>
-                         <Input
-               placeholder="Thêm ghi chú về đơn hàng..."
-               value={notes}
-               onChange={(e) => setNotes(e.target.value)}
-               size="medium"
-             />
-          </Box>
-        </Box>
-
-        {/* Total Amount - Highlighted */}
-        <Box className="modern-card section-spacing scale-in">
-          <Box className="p-3">
-            <Box className="flex justify-between items-center">
-                             <Text className="text-heading" style={{ fontSize: '16px', fontWeight: '600', color: '#111827' }}>Tổng tiền</Text>
-               <Text className="text-green-600 font-bold" style={{ fontSize: '16px' }}>
-                {formatCurrency(orders.reduce((sum, item) => sum + (quantities[item.crdfd_kehoachhangve_draftid] * item.crdfd_gia), 0))}
-              </Text>
-            </Box>
+            <Input
+              placeholder="Thêm ghi chú về đơn hàng..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              size="medium"
+            />
           </Box>
         </Box>
 

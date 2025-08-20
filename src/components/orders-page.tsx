@@ -1,5 +1,5 @@
 import { Box, Text, Button, Spinner, Input, DatePicker } from "zmp-ui";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, memo } from "react";
 import Header from "./header";
 import Toast from "./toast";
 import { DraftOrder, apiService } from "../services/api";
@@ -10,76 +10,57 @@ interface OrdersPageProps {
   allDraftOrders?: DraftOrder[];
 }
 
+// Component đếm ngược độc lập để tránh re-render cả danh sách mỗi giây
+const CountdownText = memo(({ createdon, urgent }: { createdon?: string; urgent?: boolean }) => {
+  const [now, setNow] = useState<number>(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (!createdon) {
+    return <Text className="text-sm text-gray-400">N/A</Text>;
+  }
+
+  const totalMs = urgent ? 30 * 60 * 1000 : 6 * 60 * 60 * 1000;
+  const createdMs = new Date(createdon).getTime();
+  const remainingMs = createdMs + totalMs - now;
+  const clampRemaining = Math.max(0, remainingMs);
+  const hours = Math.floor(clampRemaining / 3600000);
+  const minutes = Math.floor((clampRemaining % 3600000) / 60000);
+  const seconds = Math.floor((clampRemaining % 60000) / 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const text = remainingMs <= 0 ? 'Hết hạn' : `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+
+  let color = '#059669';
+  if (remainingMs <= 0) {
+    color = '#DC2626';
+  } else {
+    const ratio = remainingMs / totalMs;
+    color = ratio <= 0.2 ? '#F59E0B' : '#059669';
+  }
+
+  return (
+    <Text className="text-sm font-medium" style={{ color }}>
+      {text}
+    </Text>
+  );
+});
+
+CountdownText.displayName = 'CountdownText';
+
 const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) => {
   const [orders, setOrders] = useState<DraftOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
-  const [orderUpdates, setOrderUpdates] = useState<{[key: string]: {quantity: number, deliveryDate: string}}>({});
   const [toast, setToast] = useState<{message: string; type: 'success' | 'error' | 'info'; isVisible: boolean}>({
     message: '',
     type: 'info',
     isVisible: false
   });
-  const [rejectModal, setRejectModal] = useState<{ open: boolean; order: DraftOrder | null; reason: string; submitting: boolean; error?: string }>({
-    open: false,
-    order: null,
-    reason: '',
-    submitting: false,
-  });
-  const rejectReasonRef = useRef<string>('');
+  const [deliveryDates, setDeliveryDates] = useState<{[key: string]: Date}>({});
 
-  // Field nhập lý do với debounce để tránh khựng
-  const RejectReasonField = ({ initialValue, onRawChange }: { initialValue: string; onRawChange: (v: string) => void }) => {
-    return (
-      <Input
-        placeholder="Nhập lý do..."
-        defaultValue={initialValue}
-        onChange={(e) => onRawChange(e.target.value)}
-        className="w-full mb-2"
-      />
-    );
-  };
-
-  // Lưu giá trị số lượng nhập tự do theo từng đơn (không render khi gõ)
-  const quantityInputsRef = useRef<{ [key: string]: string }>({});
-
-  // Component đếm ngược độc lập để tránh re-render cả danh sách mỗi giây
-  const CountdownText = ({ createdon, urgent }: { createdon?: string; urgent?: boolean }) => {
-    const [now, setNow] = useState<number>(Date.now());
-    useEffect(() => {
-      const id = setInterval(() => setNow(Date.now()), 1000);
-      return () => clearInterval(id);
-    }, []);
-
-    if (!createdon) {
-      return <Text className="text-sm text-gray-400">N/A</Text>;
-    }
-
-    const totalMs = urgent ? 30 * 60 * 1000 : 6 * 60 * 60 * 1000;
-    const createdMs = new Date(createdon).getTime();
-    const remainingMs = createdMs + totalMs - now;
-    const clampRemaining = Math.max(0, remainingMs);
-    const hours = Math.floor(clampRemaining / 3600000);
-    const minutes = Math.floor((clampRemaining % 3600000) / 60000);
-    const seconds = Math.floor((clampRemaining % 60000) / 1000);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const text = remainingMs <= 0 ? 'Hết hạn' : `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
-
-    let color = '#059669';
-    if (remainingMs <= 0) {
-      color = '#DC2626';
-    } else {
-      const ratio = remainingMs / totalMs;
-      color = ratio <= 0.2 ? '#F59E0B' : '#059669';
-    }
-
-    return (
-      <Text className="text-sm font-medium" style={{ color }}>
-        {text}
-      </Text>
-    );
-  };
 
   // Lọc đơn hàng theo loại
   const urgentOrders = orders.filter(order => order.crdfd_urgent_type === 1);
@@ -128,44 +109,25 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     }).format(amount);
   };
 
-  // Không cập nhật state khi gõ số lượng; chỉ lưu vào ref và đọc khi submit
-
-  const handleDeliveryDateChange = (orderId: string, deliveryDate: string) => {
-    setOrderUpdates(prev => ({
-      ...prev,
-      [orderId]: {
-        ...prev[orderId],
-        deliveryDate: deliveryDate
-      }
-    }));
-  };
-
   const handleConfirmOrder = async (order: DraftOrder) => {
     try {
-      const update = orderUpdates[order.crdfd_kehoachhangve_draftid];
-      const rawQuantity = quantityInputsRef.current[order.crdfd_kehoachhangve_draftid];
-      const parsedQuantity = rawQuantity !== undefined ? Math.max(0, parseInt(rawQuantity) || 0) : undefined;
-      const quantity = parsedQuantity !== undefined ? parsedQuantity : (update?.quantity || order.crdfd_soluong);
-      const deliveryDate = update?.deliveryDate || order.cr1bb_ngaygiaodukien;
-
+      // Lấy giá trị từ input element
+      const inputElement = document.querySelector(`input[data-order-id="${order.crdfd_kehoachhangve_draftid}"]`) as HTMLInputElement;
+      const quantity = inputElement ? parseInt(inputElement.value) || order.crdfd_soluong : order.crdfd_soluong;
+      const selectedDeliveryDate = deliveryDates[order.crdfd_kehoachhangve_draftid] || (order.cr1bb_ngaygiaodukien ? new Date(order.cr1bb_ngaygiaodukien) : undefined);
+      
       await apiService.updateDraftOrderStatus(
         order.crdfd_kehoachhangve_draftid,
         191920001,
         quantity,
         order.crdfd_soluong,
         '',
-        deliveryDate
+        selectedDeliveryDate ? selectedDeliveryDate.toISOString() : undefined
       );
       
       setOrders(prevOrders => 
         prevOrders.filter(o => o.crdfd_kehoachhangve_draftid !== order.crdfd_kehoachhangve_draftid)
       );
-      
-      setOrderUpdates(prev => {
-        const newUpdates = { ...prev };
-        delete newUpdates[order.crdfd_kehoachhangve_draftid];
-        return newUpdates;
-      });
       
       setToast({
         message: 'Đã xác nhận đơn hàng thành công!',
@@ -182,25 +144,19 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     }
   };
 
-  const handleRejectOrder = async (order: DraftOrder, reason: string) => {
+  const handleRejectOrder = async (order: DraftOrder) => {
     try {
       await apiService.updateDraftOrderStatus(
         order.crdfd_kehoachhangve_draftid,
         191920002,
         0,
         order.crdfd_soluong,
-        reason
+        'Từ chối đơn hàng'
       );
       
       setOrders(prevOrders => 
         prevOrders.filter(o => o.crdfd_kehoachhangve_draftid !== order.crdfd_kehoachhangve_draftid)
       );
-      
-      setOrderUpdates(prev => {
-        const newUpdates = { ...prev };
-        delete newUpdates[order.crdfd_kehoachhangve_draftid];
-        return newUpdates;
-      });
       
       setToast({
         message: 'Đã từ chối đơn hàng!',
@@ -217,32 +173,12 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     }
   };
 
-  const openRejectModal = (order: DraftOrder) => {
-    setRejectModal({ open: true, order, reason: '', submitting: false });
-    rejectReasonRef.current = '';
-  };
-
-  const closeRejectModal = () => {
-    setRejectModal(prev => ({ ...prev, open: false, order: null, reason: '', submitting: false, error: undefined }));
-  };
-
-  const submitReject = async () => {
-    if (!rejectModal.order) return;
-    if (!rejectReasonRef.current || !rejectReasonRef.current.trim()) {
-      setRejectModal(prev => ({ ...prev, error: 'Vui lòng nhập lý do từ chối' }));
-      return;
-    }
-    try {
-      setRejectModal(prev => ({ ...prev, submitting: true, error: undefined }));
-      await handleRejectOrder(rejectModal.order, rejectReasonRef.current.trim());
-      closeRejectModal();
-    } catch (e) {
-      setRejectModal(prev => ({ ...prev, submitting: false, error: 'Không thể từ chối. Vui lòng thử lại.' }));
-    }
-  };
-
   // Component hiển thị danh sách đơn hàng
-  const OrderList = ({ orders }: { orders: DraftOrder[] }) => {
+  const OrderList = memo(({ orders, handleConfirmOrder, handleRejectOrder }: { 
+    orders: DraftOrder[]; 
+    handleConfirmOrder: (order: DraftOrder) => void;
+    handleRejectOrder: (order: DraftOrder) => void;
+  }) => {
     if (orders.length === 0) {
       return (
         <Box className="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
@@ -260,12 +196,7 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     return (
       <Box className="space-y-6">
         {orders.map((order) => {
-          const update = orderUpdates[order.crdfd_kehoachhangve_draftid];
-          const currentQuantity = update?.quantity || order.crdfd_soluong;
-          const currentDeliveryDate = update?.deliveryDate || order.cr1bb_ngaygiaodukien;
-          const totalAmount = currentQuantity * order.crdfd_gia;
-
-          // Countdown chuyển sang component con để tránh re-render toàn bộ
+          const totalAmount = order.crdfd_soluong * order.crdfd_gia;
 
           return (
             <Box key={order.crdfd_kehoachhangve_draftid} className="bg-white rounded-2xl p-5 shadow-md border border-gray-200">
@@ -274,8 +205,7 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
                 {order.cr1bb_tensanpham}
               </Text>
               
-              {/* Thông tin phụ - Người gửi + Đồng hồ cùng hàng */
-              }
+              {/* Thông tin phụ - Người gửi + Đồng hồ cùng hàng */}
               <Box className="flex items-center justify-between mb-4">
                 <Text className="text-gray-500 text-sm">
                   👤 {order.crdfd_nhanvienmuahang}
@@ -296,44 +226,62 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
                 </Text>
               </Box>
 
-              {/* Thông tin phụ - Grid 2 cột */}
-              <Box className="grid grid-cols-2 gap-4 mb-4">
-                <Box>
-                  <Text className="text-gray-400 text-xs font-medium mb-1 uppercase tracking-wider">NGÀY GỬI</Text>
+              {/* Thông tin phụ - 2 dòng */}
+              <Box className="space-y-3 mb-4">
+                <Box className="flex justify-between items-center">
+                  <Text className="text-gray-400 text-xs font-medium uppercase tracking-wider">NGÀY GỬI</Text>
                   <Text className="text-gray-600 text-sm">
                     {formatDate(order.createdon)}
                   </Text>
                 </Box>
-                <Box>
-                  <Text className="text-gray-400 text-xs font-medium mb-1 uppercase tracking-wider">ĐƠN GIÁ</Text>
+                <Box className="flex justify-between items-center">
+                  <Text className="text-gray-400 text-xs font-medium uppercase tracking-wider">ĐƠN GIÁ</Text>
                   <Text className="text-gray-600 text-sm font-medium">
                     {formatCurrency(order.crdfd_gia)}
                   </Text>
                 </Box>
-              </Box>
-
-              
-
-              {/* Form chỉnh sửa - Số lượng và ngày giao */}
-              <Box className="grid grid-cols-2 gap-4 mb-4">
-                <Box>
-                  <Text className="text-gray-400 text-xs font-medium mb-1 uppercase tracking-wider">
+                <Box className="flex justify-between items-center">
+                  <Text className="text-gray-400 text-xs font-medium uppercase tracking-wider">
                     SỐ LƯỢNG {order.cr1bb_onvical ? `(${String(order.cr1bb_onvical).toLowerCase()})` : ''}
                   </Text>
-                  <Input
-                    type="number"
-                    defaultValue={currentQuantity}
-                    onChange={(e) => { quantityInputsRef.current[order.crdfd_kehoachhangve_draftid] = e.target.value; }}
-                    className="w-full h-11 text-sm border-2 border-gray-300 rounded-lg bg-white focus:border-[#04A1B3] focus:ring-1 focus:ring-[#04A1B3]"
-                  />
+                  <Text className="text-gray-600 text-sm font-medium">
+                    {order.crdfd_soluong}
+                  </Text>
                 </Box>
-                <Box>
-                  <Text className="text-gray-400 text-xs font-medium mb-1 uppercase tracking-wider">NGÀY GIAO</Text>
-                  <DatePicker
-                    value={currentDeliveryDate ? new Date(currentDeliveryDate) : undefined}
-                    onChange={(date) => handleDeliveryDateChange(order.crdfd_kehoachhangve_draftid, date.toISOString())}
-                    placeholder="Chọn ngày giao"
-                  />
+                                                   <Box>
+                    <input
+                      type="number"
+                      defaultValue={order.crdfd_soluong.toString()}
+                      data-order-id={order.crdfd_kehoachhangve_draftid}
+                      style={{
+                        width: '100%',
+                        height: '40px',
+                        fontSize: '14px',
+                        border: '3px solid #6B7280',
+                        borderRadius: '8px',
+                        backgroundColor: '#ffffff',
+                        textAlign: 'right',
+                        padding: '8px 12px',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.border = '3px solid #04A1B3';
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.border = '3px solid #6B7280';
+                      }}
+                    />
+                  </Box>
+                <Box className="flex justify-between items-center">
+                  <Text className="text-gray-400 text-xs font-medium uppercase tracking-wider">NGÀY GIAO</Text>
+                  <Box className="w-40">
+                    <DatePicker
+                      value={deliveryDates[order.crdfd_kehoachhangve_draftid] || (order.cr1bb_ngaygiaodukien ? new Date(order.cr1bb_ngaygiaodukien) : new Date())}
+                      onChange={(date) => setDeliveryDates(prev => ({ ...prev, [order.crdfd_kehoachhangve_draftid]: date }))}
+                      placeholder="dd/MM/yyyy"
+                    />
+                  </Box>
                 </Box>
               </Box>
 
@@ -343,7 +291,7 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
                   variant="tertiary" 
                   className="flex-1 h-11 rounded-lg border text-sm"
                   style={{ backgroundColor: '#ffffff', borderColor: '#04A1B3', color: '#04A1B3', borderWidth: 1, borderStyle: 'solid' }}
-                  onClick={() => openRejectModal(order)}
+                  onClick={() => handleRejectOrder(order)}
                 >
                   Từ chối
                 </Button>
@@ -361,7 +309,9 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
         })}
       </Box>
     );
-  };
+  });
+
+  OrderList.displayName = 'OrderList';
 
   if (loading) {
     return (
@@ -445,44 +395,14 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
         </Box>
       </Box>
 
-      {/* Orders List */}
-      <Box className="px-4 py-4 pb-24">
-        <OrderList orders={activeTab === 0 ? allOrders : urgentOrders} />
-      </Box>
-
-      {/* Reject Reason Modal */}
-      {rejectModal.open && (
-        <Box className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <Box className="bg-white rounded-xl p-4 mx-4 w-full max-w-sm">
-            <Text className="text-gray-900 text-base font-semibold mb-3">Lý do từ chối</Text>
-            <RejectReasonField
-              initialValue={''}
-              onRawChange={(v) => { rejectReasonRef.current = v; }}
-            />
-            {rejectModal.error && (
-              <Text className="text-red-500 text-xs mb-2">{rejectModal.error}</Text>
-            )}
-            <Box className="flex gap-3 pt-2">
-              <Button
-                variant="tertiary"
-                className="flex-1 border rounded-lg text-sm"
-                onClick={closeRejectModal}
-              >
-                Hủy
-              </Button>
-              <Button
-                variant="primary"
-                className="flex-1 rounded-lg text-sm"
-                style={{ backgroundColor: '#04A1B3', borderColor: '#04A1B3' }}
-                disabled={rejectModal.submitting}
-                onClick={submitReject}
-              >
-                {rejectModal.submitting ? 'Đang xử lý...' : 'Từ chối'}
-              </Button>
-            </Box>
-          </Box>
+              {/* Orders List */}
+        <Box className="px-4 py-4 pb-24">
+          <OrderList 
+            orders={activeTab === 0 ? allOrders : urgentOrders} 
+            handleConfirmOrder={handleConfirmOrder} 
+            handleRejectOrder={handleRejectOrder} 
+          />
         </Box>
-      )}
     </Box>
   );
 };
