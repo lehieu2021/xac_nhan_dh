@@ -61,6 +61,7 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
   });
   const [deliveryDates, setDeliveryDates] = useState<{[key: string]: Date}>({});
   const [deliveryDateErrors, setDeliveryDateErrors] = useState<{[key: string]: string}>({});
+  const [quantityErrors, setQuantityErrors] = useState<{[key: string]: string}>({});
 
 
   // Lọc đơn hàng theo loại
@@ -146,16 +147,39 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     setDeliveryDateErrors(prev => ({ ...prev, [orderId]: error || '' }));
   };
 
+  // Hàm validation số lượng
+  const validateQuantity = (quantity: number, maxQuantity: number): string | null => {
+    if (quantity < 0) {
+      return 'Số lượng không được âm';
+    }
+    
+    if (quantity > maxQuantity) {
+      return `Số lượng không được vượt quá ${maxQuantity}`;
+    }
+    
+    if (!Number.isInteger(quantity)) {
+      return 'Số lượng phải là số nguyên';
+    }
+    
+    return null;
+  };
+
+  // Hàm xử lý thay đổi số lượng
+  const handleQuantityChange = (quantity: number, orderId: string, maxQuantity: number) => {
+    const error = validateQuantity(quantity, maxQuantity);
+    setQuantityErrors(prev => ({ ...prev, [orderId]: error || '' }));
+  };
+
   const handleConfirmOrder = async (order: DraftOrder) => {
     try {
       // Lấy giá trị từ input element
       const inputElement = document.querySelector(`input[data-order-id="${order.crdfd_kehoachhangve_draftid}"]`) as HTMLInputElement;
       const quantity = inputElement ? parseInt(inputElement.value) || order.crdfd_soluong : order.crdfd_soluong;
       
-      // Validation: Kiểm tra số lượng không được vượt quá số lượng ban đầu
-      if (quantity > order.crdfd_soluong) {
+      // Kiểm tra xem có lỗi số lượng nào đang tồn tại không
+      if (quantityErrors[order.crdfd_kehoachhangve_draftid]) {
         setToast({
-          message: `Số lượng không được vượt quá ${order.crdfd_soluong}`,
+          message: 'Vui lòng sửa lỗi số lượng trước khi xác nhận',
           type: 'error',
           isVisible: true
         });
@@ -177,10 +201,10 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
         }
       }
       
-      // Kiểm tra xem có lỗi ngày giao nào đang tồn tại không
-      if (deliveryDateErrors[order.crdfd_kehoachhangve_draftid]) {
+      // Kiểm tra xem có lỗi ngày giao hoặc số lượng nào đang tồn tại không
+      if (deliveryDateErrors[order.crdfd_kehoachhangve_draftid] || quantityErrors[order.crdfd_kehoachhangve_draftid]) {
         setToast({
-          message: 'Vui lòng sửa lỗi ngày giao trước khi xác nhận',
+          message: 'Vui lòng sửa tất cả lỗi trước khi xác nhận',
           type: 'error',
           isVisible: true
         });
@@ -328,7 +352,7 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
                         width: '100%',
                         height: '40px',
                         fontSize: '14px',
-                        border: '3px solid #6B7280',
+                        border: quantityErrors[order.crdfd_kehoachhangve_draftid] ? '3px solid #DC2626' : '3px solid #6B7280',
                         borderRadius: '8px',
                         backgroundColor: '#ffffff',
                         textAlign: 'right',
@@ -340,10 +364,21 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
                         e.target.style.border = '3px solid #04A1B3';
                       }}
                       onBlur={(e) => {
-                        e.target.style.border = '3px solid #6B7280';
+                        const quantity = parseInt(e.target.value) || 0;
+                        handleQuantityChange(quantity, order.crdfd_kehoachhangve_draftid, order.crdfd_soluong);
+                        
+                        if (quantityErrors[order.crdfd_kehoachhangve_draftid]) {
+                          e.target.style.border = '3px solid #DC2626';
+                        } else {
+                          e.target.style.border = '3px solid #6B7280';
+                        }
                       }}
                     />
-
+                    {quantityErrors[order.crdfd_kehoachhangve_draftid] && (
+                      <Text className="text-red-500 text-xs mt-1">
+                        {quantityErrors[order.crdfd_kehoachhangve_draftid]}
+                      </Text>
+                    )}
                   </Box>
                 <Box className="flex justify-between items-center">
                   <Text className="text-gray-400 text-xs font-medium uppercase tracking-wider">NGÀY GIAO</Text>
