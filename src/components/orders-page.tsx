@@ -60,6 +60,7 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     isVisible: false
   });
   const [deliveryDates, setDeliveryDates] = useState<{[key: string]: Date}>({});
+  const [deliveryDateErrors, setDeliveryDateErrors] = useState<{[key: string]: string}>({});
 
 
   // Lọc đơn hàng theo loại
@@ -113,6 +114,38 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     }).format(amount);
   };
 
+  // Hàm validation ngày giao
+  const validateDeliveryDate = (date: Date, orderId: string): string | null => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const deliveryDate = new Date(date);
+    deliveryDate.setHours(0, 0, 0, 0);
+    
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + 30);
+    maxDate.setHours(0, 0, 0, 0);
+    
+    if (deliveryDate < today) {
+      return 'Ngày giao không được nhỏ hơn ngày hiện tại';
+    }
+    
+    if (deliveryDate > maxDate) {
+      return 'Ngày giao không được quá 30 ngày trong tương lai';
+    }
+    
+    return null;
+  };
+
+  // Hàm xử lý thay đổi ngày giao
+  const handleDeliveryDateChange = (date: Date, orderId: string) => {
+    setDeliveryDates(prev => ({ ...prev, [orderId]: date }));
+    
+    // Validate và cập nhật lỗi
+    const error = validateDeliveryDate(date, orderId);
+    setDeliveryDateErrors(prev => ({ ...prev, [orderId]: error || '' }));
+  };
+
   const handleConfirmOrder = async (order: DraftOrder) => {
     try {
       // Lấy giá trị từ input element
@@ -130,6 +163,29 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
       }
       
       const selectedDeliveryDate = deliveryDates[order.crdfd_kehoachhangve_draftid] || (order.cr1bb_ngaygiaodukien ? new Date(order.cr1bb_ngaygiaodukien) : undefined);
+      
+      // Validation: Kiểm tra ngày giao
+      if (selectedDeliveryDate) {
+        const error = validateDeliveryDate(selectedDeliveryDate, order.crdfd_kehoachhangve_draftid);
+        if (error) {
+          setToast({
+            message: error,
+            type: 'error',
+            isVisible: true
+          });
+          return;
+        }
+      }
+      
+      // Kiểm tra xem có lỗi ngày giao nào đang tồn tại không
+      if (deliveryDateErrors[order.crdfd_kehoachhangve_draftid]) {
+        setToast({
+          message: 'Vui lòng sửa lỗi ngày giao trước khi xác nhận',
+          type: 'error',
+          isVisible: true
+        });
+        return;
+      }
       
       await apiService.updateDraftOrderStatus(
         order.crdfd_kehoachhangve_draftid,
@@ -294,11 +350,18 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
                   <Box className="w-40">
                     <DatePicker
                       value={deliveryDates[order.crdfd_kehoachhangve_draftid] || (order.cr1bb_ngaygiaodukien ? new Date(order.cr1bb_ngaygiaodukien) : new Date())}
-                      onChange={(date) => setDeliveryDates(prev => ({ ...prev, [order.crdfd_kehoachhangve_draftid]: date }))}
+                      onChange={(date) => handleDeliveryDateChange(date, order.crdfd_kehoachhangve_draftid)}
                       placeholder="dd/MM/yyyy"
                     />
                   </Box>
                 </Box>
+                {deliveryDateErrors[order.crdfd_kehoachhangve_draftid] && (
+                  <Box className="mt-1">
+                    <Text className="text-red-500 text-xs">
+                      {deliveryDateErrors[order.crdfd_kehoachhangve_draftid]}
+                    </Text>
+                  </Box>
+                )}
               </Box>
 
               {/* Action Buttons */}
