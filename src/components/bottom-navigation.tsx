@@ -79,7 +79,7 @@ const BottomNavigation = ({ activeTab, onTabChange }: BottomNavigationProps) => 
     },
     {
       id: 'chat',
-      label: 'Hỗ trợ',
+      label: 'Chat',
       icon: 'chat'
     },
     {
