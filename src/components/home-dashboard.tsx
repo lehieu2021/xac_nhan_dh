@@ -108,7 +108,7 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ onViewAllOrders, supplier
               <Box className="flex items-center space-x-2 p-2 bg-red-50 rounded-lg">
                 <Text className="text-red-500">🔴</Text>
                 <Text className="text-red-700 text-sm">
-                  {urgentCount} đơn hàng cần xác nhận gấp
+                  {urgentCount} đơn hàng chi tiết cần xác nhận gấp
                 </Text>
               </Box>
             )}

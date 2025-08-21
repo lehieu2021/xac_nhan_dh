@@ -196,16 +196,8 @@ function HomePage() {
       order.crdfd_ncc_nhan_don === undefined
     );
     
-    // Nhóm các đơn hàng chưa xác nhận theo nhân viên + ngày
-    const groupedPendingOrders: Record<string, DraftOrder[]> = {};
-    pendingOrders.forEach(item => {
-      const date = new Date(item.createdon).toLocaleDateString('vi-VN');
-      const key = `${item.crdfd_nhanvienmuahang} - ${date}`;
-      if (!groupedPendingOrders[key]) groupedPendingOrders[key] = [];
-      groupedPendingOrders[key].push(item);
-    });
-    
-    const urgentCount = Object.keys(groupedPendingOrders).length;
+    // Đếm số đơn hàng chi tiết chưa xác nhận (không nhóm)
+    const urgentCount = pendingOrders.length;
     
     // Tính số đơn hàng theo trạng thái
     const statusCounts = allDraftOrders.reduce((acc, order) => {

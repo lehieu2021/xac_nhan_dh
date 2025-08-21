@@ -55,35 +55,29 @@ const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], 
     setIsChangePasswordModalOpen(true);
   };
 
-  // Tính toán thống kê
+  // Tính toán thống kê - đếm số đơn hàng chi tiết
   const orderStats = (() => {
-    const groups: Record<string, DraftOrder[]> = {};
-    allDraftOrders.forEach(item => {
-      const date = new Date(item.createdon).toLocaleDateString('vi-VN');
-      const key = `${item.crdfd_nhanvienmuahang} - ${date}`;
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(item);
-    });
+    const total = allDraftOrders.length;
     
-    const totalGroups = Object.keys(groups).length;
-    
-    const confirmedGroups = Object.values(groups).filter(group => 
-      group.some(item => item.crdfd_ncc_nhan_don === 191920001)
+    const confirmed = allDraftOrders.filter(order => 
+      order.crdfd_ncc_nhan_don === 191920001
     ).length;
     
-    const rejectedGroups = Object.values(groups).filter(group => 
-      group.some(item => item.crdfd_ncc_nhan_don === 191920002)
+    const rejected = allDraftOrders.filter(order => 
+      order.crdfd_ncc_nhan_don === 191920002
     ).length;
     
-    const pendingGroups = Object.values(groups).filter(group => 
-      group.every(item => item.crdfd_ncc_nhan_don === 191920000 || item.crdfd_ncc_nhan_don === null || item.crdfd_ncc_nhan_don === undefined)
+    const pending = allDraftOrders.filter(order => 
+      order.crdfd_ncc_nhan_don === 191920000 || 
+      order.crdfd_ncc_nhan_don === null || 
+      order.crdfd_ncc_nhan_don === undefined
     ).length;
     
     return {
-      total: totalGroups,
-      confirmed: confirmedGroups,
-      rejected: rejectedGroups,
-      pending: pendingGroups
+      total,
+      confirmed,
+      rejected,
+      pending
     };
   })();
 
@@ -159,7 +153,7 @@ const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], 
               {orderStats.total}
             </Text>
             <Text className="text-gray-500 text-xs">
-              Tổng đơn hàng
+              Tổng đơn hàng chi tiết
             </Text>
           </Box>
           <Box className="text-center p-3 bg-green-50 rounded-lg">
@@ -175,7 +169,7 @@ const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], 
               {orderStats.pending}
             </Text>
             <Text className="text-gray-500 text-xs">
-              Đang chờ
+              Chờ xác nhận
             </Text>
           </Box>
           <Box className="text-center p-3 bg-red-50 rounded-lg">

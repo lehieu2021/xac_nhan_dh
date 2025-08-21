@@ -64,9 +64,14 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
   const [quantityErrors, setQuantityErrors] = useState<{[key: string]: string}>({});
 
 
-  // Lọc đơn hàng theo loại
-  const urgentOrders = orders.filter(order => order.crdfd_urgent_type === 1);
-  const allOrders = orders; // Tất cả đơn hàng
+  // Lọc đơn hàng theo loại - chỉ hiển thị đơn chưa xác nhận
+  const pendingOrders = orders.filter(order => 
+    order.crdfd_ncc_nhan_don === 191920000 || 
+    order.crdfd_ncc_nhan_don === null || 
+    order.crdfd_ncc_nhan_don === undefined
+  );
+  const urgentOrders = pendingOrders.filter(order => order.crdfd_urgent_type === 1);
+  const allOrders = pendingOrders; // Chỉ đơn hàng chưa xác nhận
 
   useEffect(() => {
     if (allDraftOrders && allDraftOrders.length > 0) {
@@ -277,12 +282,12 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     if (orders.length === 0) {
       return (
         <Box className="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
-          <Text className="text-gray-300 mb-3" style={{ fontSize: '48px' }}>📦</Text>
+          <Text className="text-gray-300 mb-3" style={{ fontSize: '48px' }}>✅</Text>
           <Text className="text-gray-500 font-medium mb-1 text-base">
-            Chưa có đơn hàng
+            Không có đơn hàng chờ xác nhận
           </Text>
           <Text className="text-gray-400 text-sm">
-            Các đơn hàng sẽ xuất hiện ở đây
+            Tất cả đơn hàng đã được xử lý
           </Text>
         </Box>
       );
