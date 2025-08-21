@@ -75,6 +75,8 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     }
   }, [supplierCode, allDraftOrders]);
 
+
+
   const loadOrders = async () => {
     try {
       setLoading(true);
@@ -88,6 +90,8 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
       setLoading(false);
     }
   };
+
+
 
   const formatDate = (dateString: string) => {
     try {
@@ -114,6 +118,17 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
       // Lấy giá trị từ input element
       const inputElement = document.querySelector(`input[data-order-id="${order.crdfd_kehoachhangve_draftid}"]`) as HTMLInputElement;
       const quantity = inputElement ? parseInt(inputElement.value) || order.crdfd_soluong : order.crdfd_soluong;
+      
+      // Validation: Kiểm tra số lượng không được vượt quá số lượng ban đầu
+      if (quantity > order.crdfd_soluong) {
+        setToast({
+          message: `Số lượng không được vượt quá ${order.crdfd_soluong}`,
+          type: 'error',
+          isVisible: true
+        });
+        return;
+      }
+      
       const selectedDeliveryDate = deliveryDates[order.crdfd_kehoachhangve_draftid] || (order.cr1bb_ngaygiaodukien ? new Date(order.cr1bb_ngaygiaodukien) : undefined);
       
       await apiService.updateDraftOrderStatus(
@@ -248,7 +263,7 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
                     {order.crdfd_soluong}
                   </Text>
                 </Box>
-                                                   <Box>
+                  <Box>
                     <input
                       type="number"
                       defaultValue={order.crdfd_soluong.toString()}
@@ -272,6 +287,7 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
                         e.target.style.border = '3px solid #6B7280';
                       }}
                     />
+
                   </Box>
                 <Box className="flex justify-between items-center">
                   <Text className="text-gray-400 text-xs font-medium uppercase tracking-wider">NGÀY GIAO</Text>
