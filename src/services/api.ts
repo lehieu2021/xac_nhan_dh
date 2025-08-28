@@ -497,6 +497,15 @@ class ApiService {
   // Update draft order status (crdfd_ncc_nhan_don)
   async updateDraftOrderStatus(draftOrderId: string, status: number, confirmedQuantity?: number, originalQuantity?: number, notes?: string, deliveryDate?: string): Promise<void> {
     try {
+      console.log('updateDraftOrderStatus called with:', {
+        draftOrderId,
+        status,
+        confirmedQuantity,
+        originalQuantity,
+        notes,
+        deliveryDate
+      });
+      
       const token = await this.getAccessToken();
       
       const url = `${API_BASE_URL}/crdfd_kehoachhangve_drafts(${draftOrderId})`;
@@ -511,7 +520,7 @@ class ApiService {
         updateData.crdfd_ngay_xac_nhan_ncc = new Date().toISOString();
       }
       
-      
+      console.log('First update data:', updateData);
       
       const response = await fetch(url, {
         method: 'PATCH',
@@ -537,6 +546,7 @@ class ApiService {
         // Nếu có ghi chú, thêm vào dữ liệu cập nhật
         if (notes && notes.trim()) {
           additionalUpdateData.crdfd_ghi_chu_ncc = notes.trim();
+          console.log('Adding notes to additional update:', notes.trim());
         }
         
         // Nếu có thông tin số lượng, cập nhật số lượng đã duyệt
@@ -544,24 +554,25 @@ class ApiService {
           additionalUpdateData.crdfd_xac_nhan_so_luong_ncc = confirmedQuantity;
         }
         
-                 // Nếu có ngày giao, cập nhật ngày giao đã xác nhận
-         if (deliveryDate && deliveryDate.trim()) {
-           try {
-             const date = new Date(deliveryDate);
-             if (!isNaN(date.getTime())) {
-               // Chuyển đổi sang format YYYY-MM-DD cho Edm.Date
-               const year = date.getFullYear();
-               const month = String(date.getMonth() + 1).padStart(2, '0');
-               const day = String(date.getDate()).padStart(2, '0');
-               additionalUpdateData.crdfd_xac_nhan_ngay_giao_ncc = `${year}-${month}-${day}`;
-             }
-           } catch (dateError) {
-             console.warn('Invalid delivery date format:', deliveryDate);
-           }
-         }
+        // Nếu có ngày giao, cập nhật ngày giao đã xác nhận
+        if (deliveryDate && deliveryDate.trim()) {
+          try {
+            const date = new Date(deliveryDate);
+            if (!isNaN(date.getTime())) {
+              // Chuyển đổi sang format YYYY-MM-DD cho Edm.Date
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const day = String(date.getDate()).padStart(2, '0');
+              additionalUpdateData.crdfd_xac_nhan_ngay_giao_ncc = `${year}-${month}-${day}`;
+            }
+          } catch (dateError) {
+            console.warn('Invalid delivery date format:', deliveryDate);
+          }
+        }
         
-                 // Chỉ thực hiện cập nhật thêm nếu có dữ liệu
-         if (Object.keys(additionalUpdateData).length > 0) {
+        // Chỉ thực hiện cập nhật thêm nếu có dữ liệu
+        if (Object.keys(additionalUpdateData).length > 0) {
+          console.log('Additional update data:', additionalUpdateData);
           
           const additionalResponse = await fetch(url, {
             method: 'PATCH',
@@ -578,6 +589,8 @@ class ApiService {
             const additionalErrorText = await additionalResponse.text();
             console.error('Update additional data response error:', additionalErrorText);
             // Không throw error vì trạng thái đã được cập nhật thành công
+          } else {
+            console.log('Additional data updated successfully');
           }
         }
       }

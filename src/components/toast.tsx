@@ -17,6 +17,7 @@ const Toast = ({ message, type, isVisible, onClose }: ToastProps) => {
 
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [isVisible, onClose]);
 
   if (!isVisible) return null;

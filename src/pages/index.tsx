@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Box } from "zmp-ui";
-import DraftOrderDetail from "@/components/draft-order-detail";
 import BottomNavigation from "@/components/bottom-navigation";
 import Profile from "@/components/profile";
 import HomeDashboard from "@/components/home-dashboard";
@@ -9,7 +8,6 @@ import Login from "@/components/Login";
 import { apiService, Supplier, DraftOrder } from "../services/api";
 
 function HomePage() {
-  const [selectedOrder, setSelectedOrder] = useState<DraftOrder | null>(null);
   const [currentView, setCurrentView] = useState("home");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState<Supplier | null>(null);
@@ -64,60 +62,10 @@ function HomePage() {
 
   
 
-  const handleConfirmOrder = async (orderIds: string[], updatedItems: { id: string; quantity: number; deliveryDate: string }[], notes: string) => {
-    try {
-      for (const orderId of orderIds) {
-        const order = orders.find(o => o.crdfd_kehoachhangve_draftid === orderId);
-        if (order) {
-          const updatedItem = updatedItems.find(item => item.id === orderId);
-          await apiService.updateDraftOrderStatus(
-            orderId, 
-            191920001, // Đã xác nhận
-            updatedItem?.quantity || order.crdfd_soluong,
-            order.crdfd_soluong,
-            notes,
-            updatedItem?.deliveryDate
-          );
-        }
-      }
-      alert("Đã xác nhận đơn hàng thành công!");
-      setSelectedOrder(null);
-      fetchOrders(); // Refresh orders list
-    } catch (error) {
-      console.error('Error confirming order:', error);
-      alert('Có lỗi xảy ra khi xác nhận đơn hàng');
-    }
-  };
 
-  const handleRejectOrder = async (orderIds: string[]) => {
-    try {
-      for (const orderId of orderIds) {
-        const order = orders.find(o => o.crdfd_kehoachhangve_draftid === orderId);
-        if (order) {
-          await apiService.updateDraftOrderStatus(
-            orderId, 
-            191920002, // Từ chối nhận đơn
-            0, // Số lượng xác nhận = 0
-            order.crdfd_soluong
-          );
-        }
-      }
-      alert("Đã từ chối đơn hàng!");
-      setSelectedOrder(null);
-      fetchOrders(); // Refresh orders list
-    } catch (error) {
-      console.error('Error rejecting order:', error);
-      alert('Có lỗi xảy ra khi từ chối đơn hàng');
-    }
-  };
-
-  const handleBack = () => {
-    setSelectedOrder(null);
-  };
 
   const handleTabChange = (tab: string) => {
     setCurrentView(tab);
-    setSelectedOrder(null); // Reset selected order when changing tabs
   };
 
   const handleLogin = async (supplierId: string, supplierData: Supplier) => {
@@ -130,7 +78,6 @@ function HomePage() {
     setIsLoggedIn(false);
     setUserInfo(null);
     setCurrentView("home");
-    setSelectedOrder(null);
     setOrders([]);
   };
 
@@ -156,19 +103,7 @@ function HomePage() {
     return <Login onLogin={handleLogin} onError={handleLoginError} />;
   }
 
-  if (selectedOrder) {
-    return (
-      <Box>
-        <DraftOrderDetail
-          orders={[selectedOrder]}
-          onBack={handleBack}
-          onConfirm={handleConfirmOrder}
-          onReject={handleRejectOrder}
-        />
-        <BottomNavigation activeTab={currentView} onTabChange={handleTabChange} />
-      </Box>
-    );
-  }
+
 
   // Profile View (Hồ sơ)
   if (currentView === 'profile') {

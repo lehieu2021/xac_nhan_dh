@@ -1,5 +1,6 @@
 import { Box, Text, Button, Spinner, Input, DatePicker } from "zmp-ui";
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect, memo, useCallback, useMemo, useRef } from "react";
+import type React from "react";
 import Header from "./header";
 import Toast from "./toast";
 import { DraftOrder, apiService } from "../services/api";
@@ -61,17 +62,24 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
   });
   const [deliveryDates, setDeliveryDates] = useState<{[key: string]: Date}>({});
   const [deliveryDateErrors, setDeliveryDateErrors] = useState<{[key: string]: string}>({});
-  const [quantityErrors, setQuantityErrors] = useState<{[key: string]: string}>({});
+  const [quantities, setQuantities] = useState<{[key: string]: string}>({});
+  const [rejectReasons, setRejectReasons] = useState<{[key: string]: string}>({});
+  const quantityRefs = useRef<{[key: string]: string}>({});
+  const [rejectReasonErrors, setRejectReasonErrors] = useState<{[key: string]: string}>({});
 
 
-  // Lọc đơn hàng theo loại - chỉ hiển thị đơn chưa xác nhận
-  const pendingOrders = orders.filter(order => 
-    order.crdfd_ncc_nhan_don === 191920000 || 
-    order.crdfd_ncc_nhan_don === null || 
-    order.crdfd_ncc_nhan_don === undefined
-  );
-  const urgentOrders = pendingOrders.filter(order => order.crdfd_urgent_type === 1);
-  const allOrders = pendingOrders; // Chỉ đơn hàng chưa xác nhận
+  // Lọc đơn hàng theo loại - chỉ hiển thị đơn chưa xác nhận (memoized)
+  const { allOrders, urgentOrders } = useMemo(() => {
+    const pending = orders.filter(order => 
+      order.crdfd_ncc_nhan_don === 191920000 || 
+      order.crdfd_ncc_nhan_don === null || 
+      order.crdfd_ncc_nhan_don === undefined
+    );
+    return {
+      allOrders: pending,
+      urgentOrders: pending.filter(order => order.crdfd_urgent_type === 1),
+    };
+  }, [orders]);
 
   useEffect(() => {
     if (allDraftOrders && allDraftOrders.length > 0) {
@@ -152,44 +160,28 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     setDeliveryDateErrors(prev => ({ ...prev, [orderId]: error || '' }));
   };
 
-  // Hàm validation số lượng
-  const validateQuantity = (quantity: number, maxQuantity: number): string | null => {
-    if (quantity < 0) {
-      return 'Số lượng không được âm';
-    }
-    
-    if (quantity > maxQuantity) {
-      return `Số lượng không được vượt quá ${maxQuantity}`;
-    }
-    
-    if (!Number.isInteger(quantity)) {
-      return 'Số lượng phải là số nguyên';
-    }
-    
-    return null;
-  };
+  // Đã bỏ validation số lượng theo yêu cầu
 
-  // Hàm xử lý thay đổi số lượng
-  const handleQuantityChange = (quantity: number, orderId: string, maxQuantity: number) => {
-    const error = validateQuantity(quantity, maxQuantity);
-    setQuantityErrors(prev => ({ ...prev, [orderId]: error || '' }));
-  };
+  // Hàm xử lý thay đổi số lượng (không validate)
+  const handleQuantityInput = useCallback((value: string, orderId: string) => {
+    quantityRefs.current[orderId] = value;
+  }, []);
+  const handleQuantityBlur = useCallback((orderId: string) => {
+    const v = quantityRefs.current[orderId];
+    if (v !== undefined) {
+      setQuantities(prev => ({ ...prev, [orderId]: v }));
+    }
+  }, []);
 
-  const handleConfirmOrder = async (order: DraftOrder) => {
+  const handleConfirmOrder = useCallback(async (order: DraftOrder) => {
     try {
-      // Lấy giá trị từ input element
-      const inputElement = document.querySelector(`input[data-order-id="${order.crdfd_kehoachhangve_draftid}"]`) as HTMLInputElement;
-      const quantity = inputElement ? parseInt(inputElement.value) || order.crdfd_soluong : order.crdfd_soluong;
+      // Lấy giá trị từ state
+      const quantityStr = quantityRefs.current[order.crdfd_kehoachhangve_draftid] ?? quantities[order.crdfd_kehoachhangve_draftid];
+      const quantity = (quantityStr !== undefined && quantityStr !== '')
+        ? parseInt(quantityStr, 10)
+        : order.crdfd_soluong;
       
-      // Kiểm tra xem có lỗi số lượng nào đang tồn tại không
-      if (quantityErrors[order.crdfd_kehoachhangve_draftid]) {
-        setToast({
-          message: 'Vui lòng sửa lỗi số lượng trước khi xác nhận',
-          type: 'error',
-          isVisible: true
-        });
-        return;
-      }
+      // Bỏ kiểm tra lỗi số lượng
       
       const selectedDeliveryDate = deliveryDates[order.crdfd_kehoachhangve_draftid] || (order.cr1bb_ngaygiaodukien ? new Date(order.cr1bb_ngaygiaodukien) : undefined);
       
@@ -206,10 +198,10 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
         }
       }
       
-      // Kiểm tra xem có lỗi ngày giao hoặc số lượng nào đang tồn tại không
-      if (deliveryDateErrors[order.crdfd_kehoachhangve_draftid] || quantityErrors[order.crdfd_kehoachhangve_draftid]) {
+      // Chỉ kiểm tra lỗi ngày giao
+      if (deliveryDateErrors[order.crdfd_kehoachhangve_draftid]) {
         setToast({
-          message: 'Vui lòng sửa tất cả lỗi trước khi xác nhận',
+          message: 'Vui lòng sửa lỗi ngày giao trước khi xác nhận',
           type: 'error',
           isVisible: true
         });
@@ -229,6 +221,13 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
         prevOrders.filter(o => o.crdfd_kehoachhangve_draftid !== order.crdfd_kehoachhangve_draftid)
       );
       
+      // Xóa quantity khỏi state
+      setQuantities(prev => {
+        const newQuantities = { ...prev };
+        delete newQuantities[order.crdfd_kehoachhangve_draftid];
+        return newQuantities;
+      });
+      
       setToast({
         message: 'Đã xác nhận đơn hàng thành công!',
         type: 'success',
@@ -242,36 +241,228 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
         isVisible: true
       });
     }
-  };
+  }, [deliveryDates, deliveryDateErrors, quantities]);
 
-  const handleRejectOrder = async (order: DraftOrder) => {
+  // Tối ưu hóa callback functions để tránh re-render
+  const handleRejectReasonChange = useCallback((value: string, orderId: string) => {
+    setRejectReasons(prev => {
+      // Chỉ cập nhật nếu giá trị thực sự thay đổi
+      if (prev[orderId] === value) return prev;
+      return { ...prev, [orderId]: value };
+    });
+    
+    // Xóa lỗi khi user bắt đầu nhập
+    if (value.trim()) {
+      setRejectReasonErrors(prev => {
+        if (!prev[orderId]) return prev;
+        const newErrors = { ...prev };
+        delete newErrors[orderId];
+        return newErrors;
+      });
+    }
+  }, []);
+
+  const handleRejectOrder = useCallback(async (order: DraftOrder) => {
+    const rejectReason = rejectReasons[order.crdfd_kehoachhangve_draftid] || '';
+    
+    // Kiểm tra lý do từ chối
+    if (!rejectReason.trim()) {
+      setRejectReasonErrors(prev => ({
+        ...prev,
+        [order.crdfd_kehoachhangve_draftid]: 'Vui lòng nhập lý do từ chối'
+      }));
+      return;
+    }
+
+    // Xác nhận trước khi từ chối
+    const confirmReject = window.confirm(
+      `Bạn có chắc chắn muốn từ chối đơn hàng này?\n\nLý do: ${rejectReason}\n\nLý do này sẽ được lưu vào ghi chú trong hệ thống.`
+    );
+    
+    if (!confirmReject) {
+      return;
+    }
+
     try {
       await apiService.updateDraftOrderStatus(
         order.crdfd_kehoachhangve_draftid,
         191920002,
         0,
         order.crdfd_soluong,
-        'Từ chối đơn hàng'
+        rejectReason.trim()
       );
       
       setOrders(prevOrders => 
         prevOrders.filter(o => o.crdfd_kehoachhangve_draftid !== order.crdfd_kehoachhangve_draftid)
       );
       
+      // Xóa quantity khỏi state
+      setQuantities(prev => {
+        const newQuantities = { ...prev };
+        delete newQuantities[order.crdfd_kehoachhangve_draftid];
+        return newQuantities;
+      });
+      
+      // Xóa lý do từ chối và lỗi
+      setRejectReasons(prev => {
+        const newReasons = { ...prev };
+        delete newReasons[order.crdfd_kehoachhangve_draftid];
+        return newReasons;
+      });
+      setRejectReasonErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[order.crdfd_kehoachhangve_draftid];
+        return newErrors;
+      });
+      
       setToast({
-        message: 'Đã từ chối đơn hàng!',
+        message: `Đã từ chối đơn hàng thành công!\n\nLý do: ${rejectReason}`,
         type: 'success',
         isVisible: true
       });
     } catch (error) {
       console.error('Error rejecting order:', error);
       setToast({
-        message: 'Có lỗi xảy ra khi từ chối đơn hàng',
+        message: 'Có lỗi xảy ra khi từ chối đơn hàng. Vui lòng thử lại.',
         type: 'error',
         isVisible: true
       });
     }
-  };
+  }, [rejectReasons]);
+
+  // Input Số lượng tách riêng để tránh mất focus khi re-render
+  const QuantityInput = memo(({ orderId, defaultValue, onInputValue, onBlurSync }: {
+    orderId: string;
+    defaultValue: string;
+    onInputValue: (value: string, orderId: string) => void;
+    onBlurSync: (orderId: string) => void;
+  }) => {
+    const [localValue, setLocalValue] = useState(defaultValue);
+    
+    // Cập nhật localValue khi defaultValue thay đổi
+    useEffect(() => {
+      setLocalValue(defaultValue);
+    }, [defaultValue]);
+
+    return (
+      <input
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        pattern="[0-9]*"
+        value={localValue}
+        onChange={(e: React.FormEvent<HTMLInputElement>) => {
+          const digitsOnly = e.currentTarget.value.replace(/\D+/g, '');
+          setLocalValue(digitsOnly);
+          onInputValue(digitsOnly, orderId);
+        }}
+        onBlur={() => onBlurSync(orderId)}
+        style={{
+          width: '100%',
+          height: '40px',
+          fontSize: '14px',
+          border: '3px solid #6B7280',
+          borderRadius: '8px',
+          backgroundColor: '#ffffff',
+          textAlign: 'right',
+          padding: '8px 12px',
+          outline: 'none',
+          boxSizing: 'border-box'
+        }}
+      />
+    );
+  });
+
+  QuantityInput.displayName = 'QuantityInput';
+
+  // Input Lý do từ chối tách riêng để tránh mất focus khi re-render
+  const RejectReasonInput = memo(({ orderId, defaultValue, onValueChange, hasError }: {
+    orderId: string;
+    defaultValue: string;
+    onValueChange: (value: string, orderId: string) => void;
+    hasError: boolean;
+  }) => {
+    const [localValue, setLocalValue] = useState(defaultValue);
+    const orderIdRef = useRef(orderId);
+    const defaultValueRef = useRef(defaultValue);
+    const timeoutRef = useRef<number>();
+    const onValueChangeRef = useRef(onValueChange);
+    
+    // Cập nhật ref khi callback thay đổi
+    useEffect(() => {
+      onValueChangeRef.current = onValueChange;
+    }, [onValueChange]);
+    
+    // Chỉ cập nhật localValue khi orderId thay đổi (đơn hàng khác)
+    useEffect(() => {
+      if (orderIdRef.current !== orderId) {
+        orderIdRef.current = orderId;
+        defaultValueRef.current = defaultValue;
+        setLocalValue(defaultValue);
+      }
+    }, [orderId, defaultValue]);
+
+    // Tối ưu hóa onChange handler để tránh re-render
+    const handleChange = useCallback((e: React.FormEvent<HTMLInputElement>) => {
+      const value = e.currentTarget.value;
+      setLocalValue(value);
+      
+      // Clear timeout cũ nếu có
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      // Debounce để tránh gọi onValueChange quá nhiều
+      timeoutRef.current = setTimeout(() => {
+        onValueChangeRef.current(value, orderId);
+      }, 500); // Tăng delay lên 500ms để giảm thiểu re-render
+    }, [orderId]);
+
+    // Tối ưu hóa onBlur để cập nhật giá trị cuối cùng
+    const handleBlur = useCallback(() => {
+      // Clear timeout nếu có
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      onValueChangeRef.current(localValue, orderId);
+    }, [localValue, orderId]);
+
+    // Cleanup timeout khi component unmount
+    useEffect(() => {
+      return () => {
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+      };
+    }, []);
+
+    // Tối ưu hóa style object để tránh tạo mới mỗi lần render
+    const inputStyle = useMemo(() => ({
+      width: '100%',
+      height: '40px',
+      fontSize: '14px',
+      border: `1px solid ${hasError ? '#DC2626' : '#D1D5DB'}`,
+      borderRadius: '8px',
+      backgroundColor: '#ffffff',
+      padding: '8px 12px',
+      outline: 'none',
+      boxSizing: 'border-box' as const,
+      borderWidth: hasError ? '2px' : '1px'
+    }), [hasError]);
+
+    return (
+      <input
+        type="text"
+        placeholder="Nhập lý do từ chối đơn hàng (bắt buộc)..."
+        value={localValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        style={inputStyle}
+      />
+    );
+  });
+
+  RejectReasonInput.displayName = 'RejectReasonInput';
 
   // Component hiển thị danh sách đơn hàng
   const OrderList = memo(({ orders, handleConfirmOrder, handleRejectOrder }: { 
@@ -349,41 +540,12 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
                   </Text>
                 </Box>
                   <Box>
-                    <input
-                      type="number"
-                      defaultValue={order.crdfd_soluong.toString()}
-                      data-order-id={order.crdfd_kehoachhangve_draftid}
-                      style={{
-                        width: '100%',
-                        height: '40px',
-                        fontSize: '14px',
-                        border: quantityErrors[order.crdfd_kehoachhangve_draftid] ? '3px solid #DC2626' : '3px solid #6B7280',
-                        borderRadius: '8px',
-                        backgroundColor: '#ffffff',
-                        textAlign: 'right',
-                        padding: '8px 12px',
-                        outline: 'none',
-                        boxSizing: 'border-box'
-                      }}
-                      onFocus={(e) => {
-                        e.target.style.border = '3px solid #04A1B3';
-                      }}
-                      onBlur={(e) => {
-                        const quantity = parseInt(e.target.value) || 0;
-                        handleQuantityChange(quantity, order.crdfd_kehoachhangve_draftid, order.crdfd_soluong);
-                        
-                        if (quantityErrors[order.crdfd_kehoachhangve_draftid]) {
-                          e.target.style.border = '3px solid #DC2626';
-                        } else {
-                          e.target.style.border = '3px solid #6B7280';
-                        }
-                      }}
+                    <QuantityInput
+                      orderId={order.crdfd_kehoachhangve_draftid}
+                      defaultValue={quantities[order.crdfd_kehoachhangve_draftid] ?? String(order.crdfd_soluong)}
+                      onInputValue={handleQuantityInput}
+                      onBlurSync={handleQuantityBlur}
                     />
-                    {quantityErrors[order.crdfd_kehoachhangve_draftid] && (
-                      <Text className="text-red-500 text-xs mt-1">
-                        {quantityErrors[order.crdfd_kehoachhangve_draftid]}
-                      </Text>
-                    )}
                   </Box>
                 <Box className="flex justify-between items-center">
                   <Text className="text-gray-400 text-xs font-medium uppercase tracking-wider">NGÀY GIAO</Text>
@@ -404,12 +566,39 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
                 )}
               </Box>
 
+              {/* Lý do từ chối */}
+              <Box className="mb-4">
+                <Text className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2">
+                  Lý do từ chối <span className="text-red-500">(*)</span>
+                </Text>
+                <RejectReasonInput
+                  orderId={order.crdfd_kehoachhangve_draftid}
+                  defaultValue={rejectReasons[order.crdfd_kehoachhangve_draftid] || ''}
+                  onValueChange={handleRejectReasonChange}
+                  hasError={rejectReasonErrors[order.crdfd_kehoachhangve_draftid] !== undefined}
+                />
+                {rejectReasonErrors[order.crdfd_kehoachhangve_draftid] && (
+                  <Text className="text-red-500 text-xs mt-1 flex items-center">
+                    <span style={{ marginRight: '4px' }}>⚠️</span>
+                    {rejectReasonErrors[order.crdfd_kehoachhangve_draftid]}
+                  </Text>
+                )}
+              </Box>
+
               {/* Action Buttons */}
               <Box className="flex gap-3 pt-1">
                 <Button 
                   variant="tertiary" 
                   className="flex-1 h-11 rounded-lg border text-sm"
-                  style={{ backgroundColor: '#ffffff', borderColor: '#04A1B3', color: '#04A1B3', borderWidth: 1, borderStyle: 'solid' }}
+                  disabled={!rejectReasons[order.crdfd_kehoachhangve_draftid]?.trim()}
+                  style={{ 
+                    backgroundColor: !rejectReasons[order.crdfd_kehoachhangve_draftid]?.trim() ? '#F3F4F6' : '#ffffff', 
+                    borderColor: !rejectReasons[order.crdfd_kehoachhangve_draftid]?.trim() ? '#9CA3AF' : '#DC2626', 
+                    color: !rejectReasons[order.crdfd_kehoachhangve_draftid]?.trim() ? '#9CA3AF' : '#DC2626', 
+                    borderWidth: 1, 
+                    borderStyle: 'solid',
+                    cursor: !rejectReasons[order.crdfd_kehoachhangve_draftid]?.trim() ? 'not-allowed' : 'pointer'
+                  }}
                   onClick={() => handleRejectOrder(order)}
                 >
                   Từ chối
