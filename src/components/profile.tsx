@@ -11,24 +11,19 @@ interface ProfileProps {
   supplierId: string;
   orders?: any[];
   draftOrders?: DraftOrder[];
+  allDraftOrders?: DraftOrder[];
 }
 
-const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], draftOrders = [] }: ProfileProps) => {
+const Profile = ({ onBack, onLogout, onPasswordChange, supplierId, orders = [], draftOrders = [], allDraftOrders = [] }: ProfileProps) => {
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [allDraftOrders, setAllDraftOrders] = useState<DraftOrder[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const supplierData = await apiService.getSupplierProfile(supplierId);
         setSupplier(supplierData);
-        
-        if (supplierData?.cr44a_manhacungcap) {
-          const allOrders = await apiService.getAllDraftOrders(supplierData.cr44a_manhacungcap);
-          setAllDraftOrders(allOrders);
-        }
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {

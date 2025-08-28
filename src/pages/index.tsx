@@ -16,6 +16,22 @@ function HomePage() {
   const [draftOrders, setDraftOrders] = useState<DraftOrder[]>([]);
   const [allDraftOrders, setAllDraftOrders] = useState<DraftOrder[]>([]);
 
+  // Hàm cập nhật đơn hàng để đồng bộ giữa các trang
+  const updateOrderStatus = (orderId: string, newStatus: number, notes?: string) => {
+    setAllDraftOrders(prevOrders => 
+      prevOrders.map(order => 
+        order.crdfd_kehoachhangve_draftid === orderId 
+          ? { 
+              ...order, 
+              crdfd_ncc_nhan_don: newStatus, 
+              crdfd_ngay_xac_nhan_ncc: new Date().toISOString(),
+              ...(notes && { crdfd_ghi_chu_ncc: notes })
+            }
+          : order
+      )
+    );
+  };
+
   // Fetch orders when user is logged in
   useEffect(() => {
     if (isLoggedIn && userInfo) {
@@ -116,6 +132,7 @@ function HomePage() {
           supplierId={userInfo?.crdfd_supplierid || ""}
           orders={orders}
           draftOrders={draftOrders}
+          allDraftOrders={allDraftOrders}
         />
         <BottomNavigation activeTab={currentView} onTabChange={handleTabChange} />
       </Box>
@@ -165,9 +182,9 @@ function HomePage() {
   return (
     <Box>
       <OrdersPage 
-        supplierCode={userInfo?.cr44a_manhacungcap || ""}
         onBack={() => setCurrentView('home')}
         allDraftOrders={allDraftOrders}
+        onOrderStatusUpdate={updateOrderStatus}
       />
       <BottomNavigation activeTab={currentView} onTabChange={handleTabChange} />
     </Box>

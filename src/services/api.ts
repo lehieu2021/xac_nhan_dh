@@ -465,8 +465,8 @@ class ApiService {
     try {
       const token = await this.getAccessToken();
       
-      // Query tất cả đơn hàng của NCC (không filter theo trạng thái)
-      const query = `$select=crdfd_kehoachhangve_draftid,cr1bb_tensanpham,cr1bb_onvical,crdfd_soluong,crdfd_gia,cr1bb_ngaygiaodukien,crdfd_mancc,crdfd_nhanvienmuahang,createdon,crdfd_urgent_type,crdfd_ncc_nhan_don,crdfd_ngay_xac_nhan_ncc,crdfd_xac_nhan_so_luong_ncc,crdfd_xac_nhan_ngay_giao_ncc,crdfd_ghi_chu_ncc&$top=100&$filter=statecode eq 0 and crdfd_mancc eq '${supplierCode}'&$orderby=createdon desc`;
+      // Query chỉ lấy đơn hàng chưa xác nhận của NCC (crdfd_ncc_nhan_don is null)
+      const query = `$select=crdfd_kehoachhangve_draftid,cr1bb_tensanpham,cr1bb_onvical,crdfd_soluong,crdfd_gia,cr1bb_ngaygiaodukien,crdfd_mancc,crdfd_nhanvienmuahang,createdon,crdfd_urgent_type,crdfd_ncc_nhan_don,crdfd_ngay_xac_nhan_ncc,crdfd_xac_nhan_so_luong_ncc,crdfd_xac_nhan_ngay_giao_ncc,crdfd_ghi_chu_ncc&$top=100&$filter=statecode eq 0 and crdfd_mancc eq '${supplierCode}' and crdfd_ncc_nhan_don eq null&$orderby=createdon desc`;
       const url = `${API_BASE_URL}/crdfd_kehoachhangve_drafts?${query}`;
       
       const response = await fetch(url, {

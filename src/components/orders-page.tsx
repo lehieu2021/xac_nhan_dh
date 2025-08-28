@@ -1,4 +1,4 @@
-import { Box, Text, Button, Spinner, Input, DatePicker } from "zmp-ui";
+import { Box, Text, Button, Spinner, DatePicker } from "zmp-ui";
 import { useState, useEffect, memo, useCallback, useMemo, useRef } from "react";
 import type React from "react";
 import Header from "./header";
@@ -6,9 +6,9 @@ import Toast from "./toast";
 import { DraftOrder, apiService } from "../services/api";
 
 interface OrdersPageProps {
-  supplierCode: string;
   onBack: () => void;
   allDraftOrders?: DraftOrder[];
+  onOrderStatusUpdate?: (orderId: string, newStatus: number, notes?: string) => void;
 }
 
 // Component đếm ngược độc lập để tránh re-render cả danh sách mỗi giây
@@ -50,10 +50,8 @@ const CountdownText = memo(({ createdon, urgent }: { createdon?: string; urgent?
 
 CountdownText.displayName = 'CountdownText';
 
-const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) => {
-  const [orders, setOrders] = useState<DraftOrder[]>([]);
+const OrdersPage = ({ onBack, allDraftOrders, onOrderStatusUpdate }: OrdersPageProps) => {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [toast, setToast] = useState<{message: string; type: 'success' | 'error' | 'info'; isVisible: boolean}>({
     message: '',
@@ -68,43 +66,26 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
   const [rejectReasonErrors, setRejectReasonErrors] = useState<{[key: string]: string}>({});
 
 
-  // Lọc đơn hàng theo loại - chỉ hiển thị đơn chưa xác nhận (memoized)
+  // Lọc đơn hàng theo loại - sử dụng allDraftOrders từ props (memoized)
   const { allOrders, urgentOrders } = useMemo(() => {
-    const pending = orders.filter(order => 
-      order.crdfd_ncc_nhan_don === 191920000 || 
+    // Lọc đơn hàng chưa xác nhận từ allDraftOrders
+    const pendingOrders = allDraftOrders?.filter(order => 
       order.crdfd_ncc_nhan_don === null || 
       order.crdfd_ncc_nhan_don === undefined
-    );
+    ) || [];
+    
     return {
-      allOrders: pending,
-      urgentOrders: pending.filter(order => order.crdfd_urgent_type === 1),
+      allOrders: pendingOrders,
+      urgentOrders: pendingOrders.filter(order => order.crdfd_urgent_type === 1),
     };
-  }, [orders]);
+  }, [allDraftOrders]);
 
   useEffect(() => {
-    if (allDraftOrders && allDraftOrders.length > 0) {
-      setOrders(allDraftOrders);
-      setLoading(false);
-    } else {
-      loadOrders();
-    }
-  }, [supplierCode, allDraftOrders]);
-
-
-
-  const loadOrders = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await apiService.getAllDraftOrders(supplierCode);
-      setOrders(data);
-    } catch (err) {
-      console.error('Error loading orders:', err);
-      setError(err instanceof Error ? err.message : 'Có lỗi xảy ra khi tải đơn hàng');
-    } finally {
+    // Sử dụng allDraftOrders từ props, không cần load lại
+    if (allDraftOrders) {
       setLoading(false);
     }
-  };
+  }, [allDraftOrders]);
 
 
 
@@ -160,12 +141,10 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     setDeliveryDateErrors(prev => ({ ...prev, [orderId]: error || '' }));
   };
 
-  // Đã bỏ validation số lượng theo yêu cầu
-
-  // Hàm xử lý thay đổi số lượng (không validate)
   const handleQuantityInput = useCallback((value: string, orderId: string) => {
     quantityRefs.current[orderId] = value;
   }, []);
+  
   const handleQuantityBlur = useCallback((orderId: string) => {
     const v = quantityRefs.current[orderId];
     if (v !== undefined) {
@@ -175,17 +154,13 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
 
   const handleConfirmOrder = useCallback(async (order: DraftOrder) => {
     try {
-      // Lấy giá trị từ state
       const quantityStr = quantityRefs.current[order.crdfd_kehoachhangve_draftid] ?? quantities[order.crdfd_kehoachhangve_draftid];
       const quantity = (quantityStr !== undefined && quantityStr !== '')
         ? parseInt(quantityStr, 10)
         : order.crdfd_soluong;
       
-      // Bỏ kiểm tra lỗi số lượng
-      
       const selectedDeliveryDate = deliveryDates[order.crdfd_kehoachhangve_draftid] || (order.cr1bb_ngaygiaodukien ? new Date(order.cr1bb_ngaygiaodukien) : undefined);
       
-      // Validation: Kiểm tra ngày giao
       if (selectedDeliveryDate) {
         const error = validateDeliveryDate(selectedDeliveryDate, order.crdfd_kehoachhangve_draftid);
         if (error) {
@@ -198,7 +173,6 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
         }
       }
       
-      // Chỉ kiểm tra lỗi ngày giao
       if (deliveryDateErrors[order.crdfd_kehoachhangve_draftid]) {
         setToast({
           message: 'Vui lòng sửa lỗi ngày giao trước khi xác nhận',
@@ -217,11 +191,10 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
         selectedDeliveryDate ? selectedDeliveryDate.toISOString() : undefined
       );
       
-      setOrders(prevOrders => 
-        prevOrders.filter(o => o.crdfd_kehoachhangve_draftid !== order.crdfd_kehoachhangve_draftid)
-      );
+      if (onOrderStatusUpdate) {
+        onOrderStatusUpdate(order.crdfd_kehoachhangve_draftid, 191920001);
+      }
       
-      // Xóa quantity khỏi state
       setQuantities(prev => {
         const newQuantities = { ...prev };
         delete newQuantities[order.crdfd_kehoachhangve_draftid];
@@ -243,15 +216,12 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     }
   }, [deliveryDates, deliveryDateErrors, quantities]);
 
-  // Tối ưu hóa callback functions để tránh re-render
   const handleRejectReasonChange = useCallback((value: string, orderId: string) => {
     setRejectReasons(prev => {
-      // Chỉ cập nhật nếu giá trị thực sự thay đổi
       if (prev[orderId] === value) return prev;
       return { ...prev, [orderId]: value };
     });
     
-    // Xóa lỗi khi user bắt đầu nhập
     if (value.trim()) {
       setRejectReasonErrors(prev => {
         if (!prev[orderId]) return prev;
@@ -274,15 +244,6 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
       return;
     }
 
-    // Xác nhận trước khi từ chối
-    const confirmReject = window.confirm(
-      `Bạn có chắc chắn muốn từ chối đơn hàng này?\n\nLý do: ${rejectReason}\n\nLý do này sẽ được lưu vào ghi chú trong hệ thống.`
-    );
-    
-    if (!confirmReject) {
-      return;
-    }
-
     try {
       await apiService.updateDraftOrderStatus(
         order.crdfd_kehoachhangve_draftid,
@@ -292,18 +253,16 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
         rejectReason.trim()
       );
       
-      setOrders(prevOrders => 
-        prevOrders.filter(o => o.crdfd_kehoachhangve_draftid !== order.crdfd_kehoachhangve_draftid)
-      );
+      if (onOrderStatusUpdate) {
+        onOrderStatusUpdate(order.crdfd_kehoachhangve_draftid, 191920002, rejectReason.trim());
+      }
       
-      // Xóa quantity khỏi state
       setQuantities(prev => {
         const newQuantities = { ...prev };
         delete newQuantities[order.crdfd_kehoachhangve_draftid];
         return newQuantities;
       });
       
-      // Xóa lý do từ chối và lỗi
       setRejectReasons(prev => {
         const newReasons = { ...prev };
         delete newReasons[order.crdfd_kehoachhangve_draftid];
@@ -330,7 +289,6 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     }
   }, [rejectReasons]);
 
-  // Input Số lượng tách riêng để tránh mất focus khi re-render
   const QuantityInput = memo(({ orderId, defaultValue, onInputValue, onBlurSync }: {
     orderId: string;
     defaultValue: string;
@@ -339,7 +297,6 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
   }) => {
     const [localValue, setLocalValue] = useState(defaultValue);
     
-    // Cập nhật localValue khi defaultValue thay đổi
     useEffect(() => {
       setLocalValue(defaultValue);
     }, [defaultValue]);
@@ -375,7 +332,6 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
 
   QuantityInput.displayName = 'QuantityInput';
 
-  // Input Lý do từ chối tách riêng để tránh mất focus khi re-render
   const RejectReasonInput = memo(({ orderId, defaultValue, onValueChange, hasError }: {
     orderId: string;
     defaultValue: string;
@@ -388,12 +344,10 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     const timeoutRef = useRef<number>();
     const onValueChangeRef = useRef(onValueChange);
     
-    // Cập nhật ref khi callback thay đổi
     useEffect(() => {
       onValueChangeRef.current = onValueChange;
     }, [onValueChange]);
     
-    // Chỉ cập nhật localValue khi orderId thay đổi (đơn hàng khác)
     useEffect(() => {
       if (orderIdRef.current !== orderId) {
         orderIdRef.current = orderId;
@@ -402,32 +356,26 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
       }
     }, [orderId, defaultValue]);
 
-    // Tối ưu hóa onChange handler để tránh re-render
     const handleChange = useCallback((e: React.FormEvent<HTMLInputElement>) => {
       const value = e.currentTarget.value;
       setLocalValue(value);
       
-      // Clear timeout cũ nếu có
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
       
-      // Debounce để tránh gọi onValueChange quá nhiều
       timeoutRef.current = setTimeout(() => {
         onValueChangeRef.current(value, orderId);
-      }, 500); // Tăng delay lên 500ms để giảm thiểu re-render
+      }, 500);
     }, [orderId]);
 
-    // Tối ưu hóa onBlur để cập nhật giá trị cuối cùng
     const handleBlur = useCallback(() => {
-      // Clear timeout nếu có
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
       onValueChangeRef.current(localValue, orderId);
     }, [localValue, orderId]);
 
-    // Cleanup timeout khi component unmount
     useEffect(() => {
       return () => {
         if (timeoutRef.current) {
@@ -436,7 +384,6 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
       };
     }, []);
 
-    // Tối ưu hóa style object để tránh tạo mới mỗi lần render
     const inputStyle = useMemo(() => ({
       width: '100%',
       height: '40px',
@@ -464,7 +411,6 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
 
   RejectReasonInput.displayName = 'RejectReasonInput';
 
-  // Component hiển thị danh sách đơn hàng
   const OrderList = memo(({ orders, handleConfirmOrder, handleRejectOrder }: { 
     orders: DraftOrder[]; 
     handleConfirmOrder: (order: DraftOrder) => void;
@@ -638,24 +584,7 @@ const OrdersPage = ({ supplierCode, onBack, allDraftOrders }: OrdersPageProps) =
     );
   }
 
-  if (error) {
-    return (
-      <Box className="bg-gray-50 min-h-screen">
-        <Header
-          title="Xác nhận đơn hàng"
-          subtitle="Các đơn hàng chưa được xác nhận"
-          showBackButton={true}
-          onBack={onBack}
-        />
-        <Box className="flex flex-col items-center justify-center py-20 px-4">
-          <Text className="text-red-600 text-center mb-4">{error}</Text>
-          <Button onClick={loadOrders} variant="primary">
-            Thử lại
-          </Button>
-        </Box>
-      </Box>
-    );
-  }
+
 
   return (
     <Box className="bg-gray-100 min-h-screen">
