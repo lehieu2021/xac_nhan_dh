@@ -1,5 +1,5 @@
 import { Box, Text, Button, Spinner, DatePicker } from "zmp-ui";
-import { useState, useEffect, memo, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, memo, useCallback, useMemo, useRef, useTransition } from "react";
 import type React from "react";
 import Header from "./header";
 import Toast from "./toast";
@@ -53,6 +53,7 @@ CountdownText.displayName = 'CountdownText';
 const OrdersPage = ({ onBack, allDraftOrders, onOrderStatusUpdate }: OrdersPageProps) => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
+  const [isPending, startTransition] = useTransition();
   const [toast, setToast] = useState<{message: string; type: 'success' | 'error' | 'info'; isVisible: boolean}>({
     message: '',
     type: 'info',
@@ -61,6 +62,7 @@ const OrdersPage = ({ onBack, allDraftOrders, onOrderStatusUpdate }: OrdersPageP
   const [deliveryDates, setDeliveryDates] = useState<{[key: string]: Date}>({});
   const [deliveryDateErrors, setDeliveryDateErrors] = useState<{[key: string]: string}>({});
   const [quantities, setQuantities] = useState<{[key: string]: string}>({});
+  const [quantityErrors, setQuantityErrors] = useState<{[key: string]: string}>({});
   const [rejectReasons, setRejectReasons] = useState<{[key: string]: string}>({});
   const quantityRefs = useRef<{[key: string]: string}>({});
   const [rejectReasonErrors, setRejectReasonErrors] = useState<{[key: string]: string}>({});
@@ -132,6 +134,34 @@ const OrdersPage = ({ onBack, allDraftOrders, onOrderStatusUpdate }: OrdersPageP
     return null;
   };
 
+  // Hàm validation số lượng - đơn giản hóa
+  const validateQuantity = (quantity: number, orderId: string): string | null => {
+    console.log('validateQuantity called with:', { quantity, orderId, type: typeof quantity });
+    
+    // Kiểm tra NaN
+    if (isNaN(quantity)) {
+      return 'Số lượng không hợp lệ';
+    }
+    
+    // Kiểm tra số nguyên
+    if (!Number.isInteger(quantity)) {
+      return 'Số lượng phải là số nguyên';
+    }
+    
+    // Kiểm tra > 0
+    if (quantity <= 0) {
+      return 'Số lượng phải lớn hơn 0';
+    }
+    
+    // Kiểm tra giới hạn
+    if (quantity > 999999) {
+      return `Số lượng ${quantity} vượt quá giới hạn 999,999`;
+    }
+    
+    console.log('Quantity validation passed:', quantity);
+    return null;
+  };
+
   // Hàm xử lý thay đổi ngày giao
   const handleDeliveryDateChange = (date: Date, orderId: string) => {
     setDeliveryDates(prev => ({ ...prev, [orderId]: date }));
@@ -143,45 +173,130 @@ const OrdersPage = ({ onBack, allDraftOrders, onOrderStatusUpdate }: OrdersPageP
 
   const handleQuantityInput = useCallback((value: string, orderId: string) => {
     quantityRefs.current[orderId] = value;
+    // Không cập nhật state để tránh re-render
   }, []);
   
   const handleQuantityBlur = useCallback((orderId: string) => {
     const v = quantityRefs.current[orderId];
-    if (v !== undefined) {
-      setQuantities(prev => ({ ...prev, [orderId]: v }));
+    if (v !== undefined && v.trim() !== '') {
+      // Validate số lượng
+      const quantity = parseInt(v, 10);
+      if (!isNaN(quantity)) {
+        const error = validateQuantity(quantity, orderId);
+        
+        if (error) {
+          // Có lỗi: hiển thị lỗi và không cập nhật quantities
+          setQuantityErrors(prev => ({ ...prev, [orderId]: error }));
+          setQuantities(prev => {
+            const newQuantities = { ...prev };
+            delete newQuantities[orderId];
+            return newQuantities;
+          });
+        } else {
+          // Không có lỗi: xóa lỗi và cập nhật quantities
+          setQuantityErrors(prev => {
+            const newErrors = { ...prev };
+            delete newErrors[orderId];
+            return newErrors;
+          });
+          setQuantities(prev => ({ ...prev, [orderId]: v }));
+        }
+      } else {
+        setQuantityErrors(prev => ({ ...prev, [orderId]: 'Số lượng không hợp lệ' }));
+        setQuantities(prev => {
+          const newQuantities = { ...prev };
+          delete newQuantities[orderId];
+          return newQuantities;
+        });
+      }
+    } else {
+      // Nếu input rỗng, xóa lỗi và reset về giá trị gốc
+      setQuantityErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[orderId];
+        return newErrors;
+      });
+      setQuantities(prev => {
+        const newQuantities = { ...prev };
+        delete newQuantities[orderId];
+        return newQuantities;
+      });
     }
   }, []);
 
   const handleConfirmOrder = useCallback(async (order: DraftOrder) => {
-    try {
-      const quantityStr = quantityRefs.current[order.crdfd_kehoachhangve_draftid] ?? quantities[order.crdfd_kehoachhangve_draftid];
-      const quantity = (quantityStr !== undefined && quantityStr !== '')
-        ? parseInt(quantityStr, 10)
-        : order.crdfd_soluong;
-      
-      const selectedDeliveryDate = deliveryDates[order.crdfd_kehoachhangve_draftid] || (order.cr1bb_ngaygiaodukien ? new Date(order.cr1bb_ngaygiaodukien) : undefined);
-      
-      if (selectedDeliveryDate) {
-        const error = validateDeliveryDate(selectedDeliveryDate, order.crdfd_kehoachhangve_draftid);
-        if (error) {
-          setToast({
-            message: error,
-            type: 'error',
-            isVisible: true
-          });
-          return;
-        }
-      }
-      
-      if (deliveryDateErrors[order.crdfd_kehoachhangve_draftid]) {
+    const quantityStr = quantityRefs.current[order.crdfd_kehoachhangve_draftid] ?? quantities[order.crdfd_kehoachhangve_draftid];
+    const quantity = (quantityStr !== undefined && quantityStr !== '')
+      ? parseInt(quantityStr, 10)
+      : order.crdfd_soluong;
+    
+    // Debug: log để kiểm tra
+    console.log('Quantity validation:', {
+      quantityStr,
+      quantity,
+      originalQuantity: order.crdfd_soluong,
+      isValid: Number.isInteger(quantity),
+      isOverLimit: quantity > 999999
+    });
+    
+    // Kiểm tra xem có lỗi số lượng không (đã validate ở input)
+    if (quantityErrors[order.crdfd_kehoachhangve_draftid]) {
+      setToast({
+        message: 'Vui lòng sửa lỗi số lượng trước khi xác nhận',
+        type: 'error',
+        isVisible: true
+      });
+      return;
+    }
+    
+    const selectedDeliveryDate = deliveryDates[order.crdfd_kehoachhangve_draftid] || (order.cr1bb_ngaygiaodukien ? new Date(order.cr1bb_ngaygiaodukien) : undefined);
+    
+    if (selectedDeliveryDate) {
+      const error = validateDeliveryDate(selectedDeliveryDate, order.crdfd_kehoachhangve_draftid);
+      if (error) {
         setToast({
-          message: 'Vui lòng sửa lỗi ngày giao trước khi xác nhận',
+          message: error,
           type: 'error',
           isVisible: true
         });
         return;
       }
+    }
+    
+    // Kiểm tra lỗi ngày giao
+    if (deliveryDateErrors[order.crdfd_kehoachhangve_draftid]) {
+      setToast({
+        message: 'Vui lòng sửa lỗi ngày giao trước khi xác nhận',
+        type: 'error',
+        isVisible: true
+      });
+      return;
+    }
+    
+    // Sử dụng requestAnimationFrame để đảm bảo UI được cập nhật trong frame tiếp theo
+    requestAnimationFrame(() => {
+      // Cập nhật UI ngay lập tức để tạo cảm giác nhanh
+      if (onOrderStatusUpdate) {
+        onOrderStatusUpdate(order.crdfd_kehoachhangve_draftid, 191920001);
+      }
       
+      // Hiển thị toast thành công ngay lập tức
+      setToast({
+        message: 'Đã xác nhận đơn hàng thành công!',
+        type: 'success',
+        isVisible: true
+      });
+      
+      // Xóa quantity khỏi state
+      setQuantities(prev => {
+        const newQuantities = { ...prev };
+        delete newQuantities[order.crdfd_kehoachhangve_draftid];
+        return newQuantities;
+      });
+    });
+    
+    // Ghi vào DB ở background
+    try {
       await apiService.updateDraftOrderStatus(
         order.crdfd_kehoachhangve_draftid,
         191920001,
@@ -190,31 +305,16 @@ const OrdersPage = ({ onBack, allDraftOrders, onOrderStatusUpdate }: OrdersPageP
         '',
         selectedDeliveryDate ? selectedDeliveryDate.toISOString() : undefined
       );
-      
-      if (onOrderStatusUpdate) {
-        onOrderStatusUpdate(order.crdfd_kehoachhangve_draftid, 191920001);
-      }
-      
-      setQuantities(prev => {
-        const newQuantities = { ...prev };
-        delete newQuantities[order.crdfd_kehoachhangve_draftid];
-        return newQuantities;
-      });
-      
-      setToast({
-        message: 'Đã xác nhận đơn hàng thành công!',
-        type: 'success',
-        isVisible: true
-      });
     } catch (error) {
-      console.error('Error confirming order:', error);
+      console.error('Error saving to DB:', error);
+      // Nếu lỗi, hiển thị toast lỗi nhưng không rollback UI
       setToast({
-        message: 'Có lỗi xảy ra khi xác nhận đơn hàng',
+        message: 'Đã xác nhận đơn hàng nhưng có lỗi khi lưu vào hệ thống',
         type: 'error',
         isVisible: true
       });
     }
-  }, [deliveryDates, deliveryDateErrors, quantities]);
+  }, [deliveryDates, deliveryDateErrors, quantities, quantityErrors, onOrderStatusUpdate]);
 
   const handleRejectReasonChange = useCallback((value: string, orderId: string) => {
     setRejectReasons(prev => {
@@ -235,7 +335,6 @@ const OrdersPage = ({ onBack, allDraftOrders, onOrderStatusUpdate }: OrdersPageP
   const handleRejectOrder = useCallback(async (order: DraftOrder) => {
     const rejectReason = rejectReasons[order.crdfd_kehoachhangve_draftid] || '';
     
-    // Kiểm tra lý do từ chối
     if (!rejectReason.trim()) {
       setRejectReasonErrors(prev => ({
         ...prev,
@@ -244,25 +343,28 @@ const OrdersPage = ({ onBack, allDraftOrders, onOrderStatusUpdate }: OrdersPageP
       return;
     }
 
-    try {
-      await apiService.updateDraftOrderStatus(
-        order.crdfd_kehoachhangve_draftid,
-        191920002,
-        0,
-        order.crdfd_soluong,
-        rejectReason.trim()
-      );
-      
+    // Sử dụng requestAnimationFrame để đảm bảo UI được cập nhật trong frame tiếp theo
+    requestAnimationFrame(() => {
+      // Cập nhật UI ngay lập tức để tạo cảm giác nhanh
       if (onOrderStatusUpdate) {
         onOrderStatusUpdate(order.crdfd_kehoachhangve_draftid, 191920002, rejectReason.trim());
       }
       
+      // Hiển thị toast thành công ngay lập tức
+      setToast({
+        message: `Đã từ chối đơn hàng thành công!\n\nLý do: ${rejectReason}`,
+        type: 'success',
+        isVisible: true
+      });
+      
+      // Xóa quantity khỏi state
       setQuantities(prev => {
         const newQuantities = { ...prev };
         delete newQuantities[order.crdfd_kehoachhangve_draftid];
         return newQuantities;
       });
       
+      // Xóa lý do từ chối và lỗi
       setRejectReasons(prev => {
         const newReasons = { ...prev };
         delete newReasons[order.crdfd_kehoachhangve_draftid];
@@ -273,33 +375,47 @@ const OrdersPage = ({ onBack, allDraftOrders, onOrderStatusUpdate }: OrdersPageP
         delete newErrors[order.crdfd_kehoachhangve_draftid];
         return newErrors;
       });
-      
-      setToast({
-        message: `Đã từ chối đơn hàng thành công!\n\nLý do: ${rejectReason}`,
-        type: 'success',
-        isVisible: true
-      });
+    });
+    
+    // Ghi vào DB ở background
+    try {
+      await apiService.updateDraftOrderStatus(
+        order.crdfd_kehoachhangve_draftid,
+        191920002,
+        0,
+        order.crdfd_soluong,
+        rejectReason.trim()
+      );
     } catch (error) {
-      console.error('Error rejecting order:', error);
+      console.error('Error saving to DB:', error);
+      // Nếu lỗi, hiển thị toast lỗi nhưng không rollback UI
       setToast({
-        message: 'Có lỗi xảy ra khi từ chối đơn hàng. Vui lòng thử lại.',
+        message: 'Đã từ chối đơn hàng nhưng có lỗi khi lưu vào hệ thống',
         type: 'error',
         isVisible: true
       });
     }
   }, [rejectReasons]);
 
-  const QuantityInput = memo(({ orderId, defaultValue, onInputValue, onBlurSync }: {
+  const QuantityInput = memo(({ orderId, defaultValue, onInputValue, onBlurSync, hasError }: {
     orderId: string;
     defaultValue: string;
     onInputValue: (value: string, orderId: string) => void;
     onBlurSync: (orderId: string) => void;
+    hasError: boolean;
   }) => {
     const [localValue, setLocalValue] = useState(defaultValue);
     
     useEffect(() => {
       setLocalValue(defaultValue);
     }, [defaultValue]);
+    
+    // Cập nhật localValue khi hasError thay đổi (để sync với validation)
+    useEffect(() => {
+      if (!hasError && quantities[orderId]) {
+        setLocalValue(quantities[orderId]);
+      }
+    }, [hasError, orderId, quantities]);
 
     return (
       <input
@@ -318,7 +434,7 @@ const OrdersPage = ({ onBack, allDraftOrders, onOrderStatusUpdate }: OrdersPageP
           width: '100%',
           height: '40px',
           fontSize: '14px',
-          border: '3px solid #6B7280',
+          border: `3px solid ${hasError ? '#DC2626' : '#6B7280'}`,
           borderRadius: '8px',
           backgroundColor: '#ffffff',
           textAlign: 'right',
@@ -479,20 +595,42 @@ const OrdersPage = ({ onBack, allDraftOrders, onOrderStatusUpdate }: OrdersPageP
                 </Box>
                 <Box className="flex justify-between items-center">
                   <Text className="text-gray-400 text-xs font-medium uppercase tracking-wider">
-                    SỐ LƯỢNG {order.cr1bb_onvical ? `(${String(order.cr1bb_onvical).toLowerCase()})` : ''}
+                    SỐ LƯỢNG BAN ĐẦU {order.cr1bb_onvical ? `(${String(order.cr1bb_onvical).toLowerCase()})` : ''}
                   </Text>
                   <Text className="text-gray-600 text-sm font-medium">
                     {order.crdfd_soluong}
                   </Text>
                 </Box>
-                  <Box>
+                <Box className="flex justify-between items-center">
+                  <Text className="text-gray-400 text-xs font-medium uppercase tracking-wider">
+                    SỐ LƯỢNG THỰC GIAO {order.cr1bb_onvical ? `(${String(order.cr1bb_onvical).toLowerCase()})` : ''}
+                  </Text>
+                  <Box className="w-32">
                     <QuantityInput
                       orderId={order.crdfd_kehoachhangve_draftid}
                       defaultValue={quantities[order.crdfd_kehoachhangve_draftid] ?? String(order.crdfd_soluong)}
                       onInputValue={handleQuantityInput}
                       onBlurSync={handleQuantityBlur}
+                      hasError={quantityErrors[order.crdfd_kehoachhangve_draftid] !== undefined}
                     />
+                    {quantityErrors[order.crdfd_kehoachhangve_draftid] && (
+                      <Box className="mt-1">
+                        <Text className="text-red-500 text-xs flex items-center">
+                          <span style={{ marginRight: '4px' }}>⚠️</span>
+                          {quantityErrors[order.crdfd_kehoachhangve_draftid]}
+                        </Text>
+                      </Box>
+                    )}
+                    {!quantityErrors[order.crdfd_kehoachhangve_draftid] && quantities[order.crdfd_kehoachhangve_draftid] && (
+                      <Box className="mt-1">
+                        <Text className="text-green-600 text-xs flex items-center">
+                          <span style={{ marginRight: '4px' }}>✅</span>
+                          Số lượng hợp lệ
+                        </Text>
+                      </Box>
+                    )}
                   </Box>
+                </Box>
                 <Box className="flex justify-between items-center">
                   <Text className="text-gray-400 text-xs font-medium uppercase tracking-wider">NGÀY GIAO</Text>
                   <Box className="w-40">
